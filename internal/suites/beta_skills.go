@@ -60,6 +60,16 @@ func (BetaSkills) Run(ctx context.Context, client anthropic.Client, _ *config.Co
 	if page == nil {
 		return fail("beta_skills", "list response is nil")
 	}
+	found := false
+	for _, item := range page.Data {
+		if item.ID == skillID {
+			found = true
+			break
+		}
+	}
+	if !found {
+		return fail("beta_skills", "created skill missing from list response")
+	}
 
 	if _, err := client.Beta.Skills.Delete(ctx, skillID, anthropic.BetaSkillDeleteParams{}); err != nil {
 		return fmt.Errorf("beta skill delete failed: %w", err)

@@ -1,6 +1,7 @@
 package suites
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"io"
@@ -79,8 +80,8 @@ func (BetaFiles) Run(ctx context.Context, client anthropic.Client, _ *config.Con
 	if err != nil {
 		return fmt.Errorf("beta file download read failed: %w", err)
 	}
-	if len(body) == 0 {
-		return fail("beta_files", "downloaded file content is empty")
+	if err := validateFileContentBody("beta_files", body, testutil.SmallTextFileBytes()); err != nil {
+		return err
 	}
 
 	if _, err := client.Beta.Files.Delete(ctx, fileID, anthropic.BetaFileDeleteParams{}); err != nil {
@@ -105,6 +106,16 @@ func validateFileMetadata(suite string, file *anthropic.FileMetadata) error {
 	}
 	if string(file.Type) != "file" {
 		return fail(suite, fmt.Sprintf("file type is %q, want file", file.Type))
+	}
+	return nil
+}
+
+func validateFileContentBody(suite string, body, want []byte) error {
+	if len(body) != len(want) {
+		return fail(suite, fmt.Sprintf("content has %d bytes, want %d", len(body), len(want)))
+	}
+	if !bytes.Equal(body, want) {
+		return fail(suite, "content body does not match uploaded file")
 	}
 	return nil
 }

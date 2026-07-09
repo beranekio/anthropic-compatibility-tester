@@ -67,21 +67,17 @@ func messageToolUseBlocks(msg *anthropic.Message) []anthropic.ContentBlockUnion 
 	return blocks
 }
 
-func hasMessageOutput(msg *anthropic.Message) bool {
-	if msg == nil {
-		return false
+func validateMessageHasTextOutput(suite string, msg *anthropic.Message) error {
+	if isRefusalStopReason(msg) {
+		return nil
 	}
 	if messageTextContent(msg) != "" {
-		return true
+		return nil
 	}
-	return messageHasToolUse(msg)
-}
-
-func validateMessageHasOutput(suite string, msg *anthropic.Message) error {
-	if !hasMessageOutput(msg) && !isRefusalStopReason(msg) {
-		return fail(suite, "response produced no text content or tool_use")
+	if messageHasToolUse(msg) {
+		return fail(suite, "response has tool_use but no tools were requested")
 	}
-	return nil
+	return fail(suite, "response produced no text content")
 }
 
 func isRefusalStopReason(msg *anthropic.Message) bool {

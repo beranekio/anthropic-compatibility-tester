@@ -36,6 +36,9 @@ func (BetaSkillVersions) Run(ctx context.Context, client anthropic.Client, _ *co
 	if err != nil {
 		return fmt.Errorf("beta skill create failed: %w", err)
 	}
+	if err := validateBetaSkillResponse("beta_skill_versions", created); err != nil {
+		return err
+	}
 	skillID = created.ID
 
 	version, err := client.Beta.Skills.Versions.New(ctx, skillID, anthropic.BetaSkillVersionNewParams{

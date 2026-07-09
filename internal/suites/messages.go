@@ -30,5 +30,5 @@ func (Messages) Run(ctx context.Context, client anthropic.Client, cfg *config.Co
 	if err := validateMessageEnvelope("messages", msg); err != nil {
 		return err
 	}
-	return validateMessageHasOutput("messages", msg)
+	return validateMessageHasTextOutput("messages", msg)
 }

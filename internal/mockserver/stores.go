@@ -210,6 +210,16 @@ func (s *skillStore) getVersion(skillID, version string) (map[string]any, bool) 
 	return cloneMap(payload), true
 }
 
+func (s *skillStore) listAll() []map[string]any {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	out := make([]map[string]any, 0, len(s.skills))
+	for _, entry := range s.skills {
+		out = append(out, cloneMap(entry.metadata))
+	}
+	return out
+}
+
 func (s *skillStore) listVersions(skillID string) []map[string]any {
 	s.mu.Lock()
 	defer s.mu.Unlock()

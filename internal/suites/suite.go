@@ -3,6 +3,7 @@ package suites
 import (
 	"context"
 	"fmt"
+	"sort"
 
 	"github.com/anthropics/anthropic-sdk-go"
 	"github.com/beranekio/anthropic-compatibility-tester/internal/config"
@@ -78,5 +79,6 @@ func Names() []string {
 	for i, suite := range all {
 		names[i] = suite.Name()
 	}
+	sort.Strings(names)
 	return names
 }

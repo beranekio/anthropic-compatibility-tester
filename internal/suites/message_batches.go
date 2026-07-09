@@ -96,6 +96,9 @@ func (MessageBatchesGet) Run(ctx context.Context, client anthropic.Client, cfg *
 	if err != nil {
 		return fmt.Errorf("message batch create failed: %w", err)
 	}
+	if err := validateMessageBatchObject("message_batches_get", created); err != nil {
+		return err
+	}
 	batchID = created.ID
 
 	got, err := client.Messages.Batches.Get(ctx, batchID)
@@ -135,6 +138,9 @@ func (MessageBatchesCancel) Run(ctx context.Context, client anthropic.Client, cf
 	})
 	if err != nil {
 		return fmt.Errorf("message batch create failed: %w", err)
+	}
+	if err := validateMessageBatchObject("message_batches_cancel", created); err != nil {
+		return err
 	}
 	batchID = created.ID
 
@@ -176,6 +182,9 @@ func (MessageBatchesList) Run(ctx context.Context, client anthropic.Client, cfg 
 	})
 	if err != nil {
 		return fmt.Errorf("message batch create failed: %w", err)
+	}
+	if err := validateMessageBatchObject("message_batches_list", created); err != nil {
+		return err
 	}
 	batchID = created.ID
 

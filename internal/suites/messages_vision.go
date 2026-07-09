@@ -36,5 +36,5 @@ func (MessagesVision) Run(ctx context.Context, client anthropic.Client, cfg *con
 	if err := validateMessageEnvelope("messages_vision", msg); err != nil {
 		return err
 	}
-	return validateMessageHasOutput("messages_vision", msg)
+	return validateMessageHasTextOutput("messages_vision", msg)
 }

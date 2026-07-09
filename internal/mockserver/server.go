@@ -396,8 +396,9 @@ func (s *Server) handleBetaSkillGet(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleBetaSkillList(w http.ResponseWriter, _ *http.Request) {
+	items := s.skillStore.listAll()
 	writeJSON(w, map[string]any{
-		"data":      []map[string]any{},
+		"data":      items,
 		"has_more":  false,
 		"next_page": nil,
 	})

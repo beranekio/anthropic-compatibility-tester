@@ -1,0 +1,67 @@
+package suites
+
+import (
+	"fmt"
+	"mime"
+	"net/http"
+	"strings"
+
+	"github.com/anthropics/anthropic-sdk-go"
+)
+
+func validateEventStreamContentType(suite string, resp *http.Response) error {
+	if resp == nil {
+		return fail(suite, "stream response is nil")
+	}
+	contentType := resp.Header.Get("Content-Type")
+	mediaType, _, err := mime.ParseMediaType(contentType)
+	if err != nil {
+		return fail(suite, fmt.Sprintf("Content-Type %q is invalid: %v", contentType, err))
+	}
+	if mediaType != "text/event-stream" {
+		return fail(suite, fmt.Sprintf("Content-Type is %q, want text/event-stream", strings.TrimSpace(contentType)))
+	}
+	return nil
+}
+
+func validateMessageStreamCompleted(suite string, finished bool, hasOutput bool, stopReason string) error {
+	if !finished {
+		return fail(suite, "stream missing terminal message_stop event")
+	}
+	if !hasOutput && stopReason != "refusal" {
+		return fail(suite, "stream produced no text content or tool_use")
+	}
+	return nil
+}
+
+func validateCompletionStreamCompleted(suite string, finished bool, hasOutput bool) error {
+	if !finished {
+		return fail(suite, "stream missing terminal completion event")
+	}
+	if !hasOutput {
+		return fail(suite, "stream produced no completion text")
+	}
+	return nil
+}
+
+func validateCompletionEnvelope(suite string, completion *anthropic.Completion) error {
+	if completion == nil {
+		return fail(suite, "response is nil")
+	}
+	if completion.ID == "" {
+		return fail(suite, "response missing id")
+	}
+	if completion.Model == "" {
+		return fail(suite, "response missing model")
+	}
+	if completion.StopReason == "" {
+		return fail(suite, "response missing stop_reason")
+	}
+	if string(completion.Type) != "completion" {
+		return fail(suite, fmt.Sprintf("response type is %q, want completion", completion.Type))
+	}
+	if completion.Completion == "" {
+		return fail(suite, "response missing completion text")
+	}
+	return nil
+}

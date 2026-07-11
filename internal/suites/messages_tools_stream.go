@@ -37,6 +37,7 @@ func (MessagesToolsStream) Run(ctx context.Context, client anthropic.Client, cfg
 		return err
 	}
 
+	var hasMessageStart bool
 	var hasToolUse bool
 	var finished bool
 	var stopReason string
@@ -46,6 +47,12 @@ func (MessagesToolsStream) Run(ctx context.Context, client anthropic.Client, cfg
 	for stream.Next() {
 		event := stream.Current()
 		switch event.Type {
+		case "message_start":
+			start := event.AsMessageStart()
+			if err := validateMessageStreamStartEnvelope("messages_tools_stream", &start.Message); err != nil {
+				return err
+			}
+			hasMessageStart = true
 		case "content_block_start":
 			block := event.AsContentBlockStart().ContentBlock
 			if block.Type == "tool_use" {
@@ -78,8 +85,14 @@ func (MessagesToolsStream) Run(ctx context.Context, client anthropic.Client, cfg
 	if err := stream.Err(); err != nil {
 		return fmt.Errorf("messages tools stream failed: %w", err)
 	}
+	if !hasMessageStart {
+		return fail("messages_tools_stream", "stream missing message_start event")
+	}
 	if !finished {
 		return fail("messages_tools_stream", "stream missing terminal message_stop event")
+	}
+	if stopReason == "" {
+		return fail("messages_tools_stream", "stream missing stop_reason in message_delta")
 	}
 	if stopReason == "refusal" {
 		return nil
@@ -87,7 +100,7 @@ func (MessagesToolsStream) Run(ctx context.Context, client anthropic.Client, cfg
 	if !hasToolUse {
 		return fail("messages_tools_stream", "stream produced no tool_use content block")
 	}
-	if stopReason != "" && stopReason != "tool_use" {
+	if stopReason != "tool_use" {
 		return fail("messages_tools_stream", fmt.Sprintf("stop_reason is %q, want tool_use", stopReason))
 	}
 	return nil

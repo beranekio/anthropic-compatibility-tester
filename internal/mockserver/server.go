@@ -323,11 +323,9 @@ func (s *Server) handleMessageBatchDelete(w http.ResponseWriter, r *http.Request
 
 func (s *Server) handleBetaFileUpload(w http.ResponseWriter, r *http.Request) {
 	filename, content := parseMultipartFile(r)
-	if filename == "" {
-		filename = "test.txt"
-	}
-	if len(content) == 0 {
-		content = []byte("compatibility test file\n")
+	if filename == "" || len(content) == 0 {
+		writeError(w, http.StatusBadRequest, "missing file", "invalid_request_error")
+		return
 	}
 	writeJSON(w, s.fileStore.create(filename, content))
 }

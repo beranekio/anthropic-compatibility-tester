@@ -154,6 +154,9 @@ func exerciseMessageBatchCancelEndpoint(ctx context.Context, client anthropic.Cl
 	if canceled.ID != batchID {
 		return fail(suite, fmt.Sprintf("batch id is %q, want %q", canceled.ID, batchID))
 	}
+	if !isMessageBatchCancelTerminalStatus(canceled.ProcessingStatus) {
+		return fail(suite, fmt.Sprintf("processing_status is %q, want canceling or ended", canceled.ProcessingStatus))
+	}
 	return nil
 }
 

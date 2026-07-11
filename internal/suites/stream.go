@@ -50,6 +50,9 @@ func validateMessageStreamCompleted(suite string, finished bool, hasMessageStart
 	if !finished {
 		return fail(suite, "stream missing terminal message_stop event")
 	}
+	if stopReason == "" {
+		return fail(suite, "stream missing stop_reason in message_delta")
+	}
 	if !hasOutput && stopReason != "refusal" {
 		return fail(suite, "stream produced no text content or tool_use")
 	}

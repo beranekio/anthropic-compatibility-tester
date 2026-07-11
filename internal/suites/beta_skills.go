@@ -63,6 +63,9 @@ func (BetaSkills) Run(ctx context.Context, client anthropic.Client, _ *config.Co
 	found := false
 	for _, item := range page.Data {
 		if item.ID == skillID {
+			if item.Type != "skill" {
+				return fail("beta_skills", fmt.Sprintf("list item type is %q, want skill", item.Type))
+			}
 			found = true
 			break
 		}
@@ -115,6 +118,9 @@ func validateBetaSkillResponse(suite string, skill *anthropic.BetaSkillNewRespon
 	if skill.Source == "" {
 		return fail(suite, "skill missing source")
 	}
+	if skill.Type != "skill" {
+		return fail(suite, fmt.Sprintf("skill type is %q, want skill", skill.Type))
+	}
 	return nil
 }
 
@@ -127,6 +133,9 @@ func validateBetaSkillGetResponse(suite string, skill *anthropic.BetaSkillGetRes
 	}
 	if skill.LatestVersion == "" {
 		return fail(suite, "skill missing latest_version")
+	}
+	if skill.Type != "skill" {
+		return fail(suite, fmt.Sprintf("skill type is %q, want skill", skill.Type))
 	}
 	return nil
 }

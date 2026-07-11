@@ -107,7 +107,7 @@ func Load(args []string) (*Config, error) {
 	visionModel := fs.String("vision-model", envOrDefault(EnvVisionModel, ""), "Model for vision message suites (defaults to --model)")
 	allowInsecureHTTP := fs.Bool("allow-insecure-http", envBoolOrDefault(EnvAllowInsecureHTTP, false), "Allow plaintext HTTP to non-loopback hosts")
 	suiteList := fs.String("suites", envOrDefault(EnvTestSuites, "all"), "Comma-separated suite names, or preset: all, default, extended, full")
-	timeout := fs.Duration("timeout", 2*time.Minute, "Per-request timeout")
+	timeout := fs.Duration("timeout", 2*time.Minute, "Per-suite timeout")
 	listSuites := fs.Bool("list-suites", false, "List available test suites and exit")
 	fs.Usage = func() {
 		fmt.Fprintf(fs.Output(), "Usage of %s:\n", fs.Name())

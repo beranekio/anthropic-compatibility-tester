@@ -57,7 +57,7 @@ func validateStreamedToolUse(suite string, id, name, inputJSON string) error {
 	if name != weatherToolName {
 		return fail(suite, fmt.Sprintf("tool_use name is %q, want %s", name, weatherToolName))
 	}
-	return validateWeatherToolInput(suite, json.RawMessage(inputJSON))
+	return validateWeatherToolInput(suite, json.RawMessage([]byte(inputJSON)))
 }
 
 func validateWeatherToolInput(suite string, input json.RawMessage) error {

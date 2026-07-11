@@ -52,6 +52,7 @@ func (MessagesToolsStream) Run(ctx context.Context, client anthropic.Client, cfg
 				inToolUse = true
 				toolUseID = block.ID
 				toolUseName = block.Name
+				toolInput.Reset()
 			}
 		case "content_block_delta":
 			delta := event.AsContentBlockDelta().Delta

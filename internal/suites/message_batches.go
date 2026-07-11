@@ -2,7 +2,9 @@ package suites
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"net/http"
 	"time"
 
 	"github.com/anthropics/anthropic-sdk-go"
@@ -102,6 +104,35 @@ func cleanupMessageBatch(client anthropic.Client, batchID string) {
 	deleteCtx, deleteCancel := context.WithTimeout(context.Background(), 10*time.Second)
 	_, _ = client.Messages.Batches.Delete(deleteCtx, batchID)
 	deleteCancel()
+}
+
+func isMessageBatchCancelAlreadyTerminalError(apiErr *anthropic.Error) bool {
+	switch apiErr.StatusCode {
+	case http.StatusConflict, http.StatusBadRequest:
+		return true
+	default:
+		return false
+	}
+}
+
+// exerciseMessageBatchCancelEndpoint calls Cancel when the batch already ended before
+// becoming cancelable. Only expected terminal-state errors prove the route exists.
+func exerciseMessageBatchCancelEndpoint(ctx context.Context, client anthropic.Client, suite, batchID string) error {
+	canceled, err := client.Messages.Batches.Cancel(ctx, batchID)
+	if err != nil {
+		var apiErr *anthropic.Error
+		if errors.As(err, &apiErr) && isMessageBatchCancelAlreadyTerminalError(apiErr) {
+			return nil
+		}
+		return fmt.Errorf("message batch cancel failed: %w", err)
+	}
+	if err := validateMessageBatchObject(suite, canceled); err != nil {
+		return err
+	}
+	if canceled.ID != batchID {
+		return fail(suite, fmt.Sprintf("batch id is %q, want %q", canceled.ID, batchID))
+	}
+	return nil
 }
 
 // MessageBatchesCreate verifies POST /v1/messages/batches.
@@ -213,8 +244,20 @@ func (MessageBatchesCancel) Run(ctx context.Context, client anthropic.Client, cf
 	}
 	batchID = created.ID
 
+	skipCancel, err := waitForMessageBatchCancelable(ctx, client, "message_batches_cancel", batchID)
+	if err != nil {
+		return err
+	}
+	if skipCancel {
+		return exerciseMessageBatchCancelEndpoint(ctx, client, "message_batches_cancel", batchID)
+	}
+
 	canceled, err := client.Messages.Batches.Cancel(ctx, batchID)
 	if err != nil {
+		var apiErr *anthropic.Error
+		if errors.As(err, &apiErr) && isMessageBatchCancelAlreadyTerminalError(apiErr) {
+			return exerciseMessageBatchCancelEndpoint(ctx, client, "message_batches_cancel", batchID)
+		}
 		return fmt.Errorf("message batch cancel failed: %w", err)
 	}
 	if err := validateMessageBatchObject("message_batches_cancel", canceled); err != nil {

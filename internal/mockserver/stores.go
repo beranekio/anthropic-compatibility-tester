@@ -3,6 +3,7 @@ package mockserver
 import (
 	"strconv"
 	"sync"
+	"time"
 )
 
 type batchStore struct {
@@ -31,6 +32,10 @@ func (s *batchStore) get(id string) (map[string]any, bool) {
 	payload, ok := s.batches[id]
 	if !ok {
 		return nil, false
+	}
+	if status, ok := payload["processing_status"].(string); ok && status == "canceling" {
+		payload["processing_status"] = "ended"
+		payload["ended_at"] = time.Now().UTC().Format(time.RFC3339)
 	}
 	return cloneMap(payload), true
 }

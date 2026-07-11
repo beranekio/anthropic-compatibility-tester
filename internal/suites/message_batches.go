@@ -9,6 +9,8 @@ import (
 	"github.com/beranekio/anthropic-compatibility-tester/internal/config"
 )
 
+const messageBatchPollInterval = 2 * time.Second
+
 func validateMessageBatchObject(suite string, batch *anthropic.MessageBatch) error {
 	if batch == nil {
 		return fail(suite, "response is nil")
@@ -25,14 +27,81 @@ func validateMessageBatchObject(suite string, batch *anthropic.MessageBatch) err
 	return nil
 }
 
+func waitForMessageBatchStatus(ctx context.Context, client anthropic.Client, suite, batchID string, accept func(anthropic.MessageBatchProcessingStatus) bool) (*anthropic.MessageBatch, error) {
+	for {
+		got, err := client.Messages.Batches.Get(ctx, batchID)
+		if err != nil {
+			return nil, fmt.Errorf("message batch get failed: %w", err)
+		}
+		if err := validateMessageBatchObject(suite, got); err != nil {
+			return nil, err
+		}
+		if got.ID != batchID {
+			return nil, fail(suite, fmt.Sprintf("batch id is %q, want %q", got.ID, batchID))
+		}
+		if accept(got.ProcessingStatus) {
+			return got, nil
+		}
+		select {
+		case <-ctx.Done():
+			return nil, fmt.Errorf("timed out waiting for message batch status: %w", ctx.Err())
+		case <-time.After(messageBatchPollInterval):
+		}
+	}
+}
+
+// waitForMessageBatchCancelable polls until the batch is in_progress (cancelable),
+// already canceling, or ended. Returns skipCancel=true when cancel is unnecessary.
+func waitForMessageBatchCancelable(ctx context.Context, client anthropic.Client, suite, batchID string) (skipCancel bool, err error) {
+	for {
+		got, err := client.Messages.Batches.Get(ctx, batchID)
+		if err != nil {
+			return false, fmt.Errorf("message batch get failed: %w", err)
+		}
+		if err := validateMessageBatchObject(suite, got); err != nil {
+			return false, err
+		}
+		if got.ID != batchID {
+			return false, fail(suite, fmt.Sprintf("batch id is %q, want %q", got.ID, batchID))
+		}
+		switch got.ProcessingStatus {
+		case anthropic.MessageBatchProcessingStatusInProgress:
+			return false, nil
+		case anthropic.MessageBatchProcessingStatusCanceling,
+			anthropic.MessageBatchProcessingStatusEnded:
+			return true, nil
+		}
+		select {
+		case <-ctx.Done():
+			return false, fmt.Errorf("timed out waiting for cancelable message batch status: %w", ctx.Err())
+		case <-time.After(messageBatchPollInterval):
+		}
+	}
+}
+
 func cleanupMessageBatch(client anthropic.Client, batchID string) {
 	if batchID == "" {
 		return
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-	_, _ = client.Messages.Batches.Cancel(ctx, batchID)
-	_, _ = client.Messages.Batches.Delete(ctx, batchID)
+
+	cancelableCtx, cancelableCancel := context.WithTimeout(context.Background(), 10*time.Second)
+	skipCancel, err := waitForMessageBatchCancelable(cancelableCtx, client, "message_batches", batchID)
+	cancelableCancel()
+	if err == nil && !skipCancel {
+		cancelCtx, cancelCancel := context.WithTimeout(context.Background(), 10*time.Second)
+		_, _ = client.Messages.Batches.Cancel(cancelCtx, batchID)
+		cancelCancel()
+	}
+
+	endedCtx, endedCancel := context.WithTimeout(context.Background(), 30*time.Second)
+	_, _ = waitForMessageBatchStatus(endedCtx, client, "message_batches", batchID, func(status anthropic.MessageBatchProcessingStatus) bool {
+		return status == anthropic.MessageBatchProcessingStatusEnded
+	})
+	endedCancel()
+
+	deleteCtx, deleteCancel := context.WithTimeout(context.Background(), 10*time.Second)
+	_, _ = client.Messages.Batches.Delete(deleteCtx, batchID)
+	deleteCancel()
 }
 
 // MessageBatchesCreate verifies POST /v1/messages/batches.

@@ -50,8 +50,12 @@ func (BetaFiles) Run(ctx context.Context, client anthropic.Client, _ *config.Con
 		return fail("beta_files", "list response is nil")
 	}
 	found := false
-	for _, item := range listPage.Data {
+	for i := range listPage.Data {
+		item := &listPage.Data[i]
 		if item.ID == fileID {
+			if err := validateFileMetadata("beta_files", item); err != nil {
+				return err
+			}
 			found = true
 			break
 		}

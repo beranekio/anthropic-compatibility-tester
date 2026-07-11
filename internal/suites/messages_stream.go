@@ -37,6 +37,7 @@ func (MessagesStream) Run(ctx context.Context, client anthropic.Client, cfg *con
 	}
 
 	events := 0
+	var hasMessageStart bool
 	var hasOutput bool
 	var finished bool
 	var stopReason string
@@ -44,6 +45,12 @@ func (MessagesStream) Run(ctx context.Context, client anthropic.Client, cfg *con
 		event := stream.Current()
 		events++
 		switch event.Type {
+		case "message_start":
+			start := event.AsMessageStart()
+			if err := validateMessageStreamStartEnvelope("messages_stream", &start.Message); err != nil {
+				return err
+			}
+			hasMessageStart = true
 		case "content_block_delta":
 			delta := event.AsContentBlockDelta().Delta
 			if delta.Text != "" {
@@ -63,5 +70,5 @@ func (MessagesStream) Run(ctx context.Context, client anthropic.Client, cfg *con
 	if events == 0 {
 		return fail("messages_stream", "stream returned no events")
 	}
-	return validateMessageStreamCompleted("messages_stream", finished, hasOutput, stopReason)
+	return validateMessageStreamCompleted("messages_stream", finished, hasMessageStart, hasOutput, stopReason)
 }

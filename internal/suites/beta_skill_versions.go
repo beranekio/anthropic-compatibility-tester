@@ -47,8 +47,8 @@ func (BetaSkillVersions) Run(ctx context.Context, client anthropic.Client, _ *co
 	if err != nil {
 		return fmt.Errorf("beta skill version create failed: %w", err)
 	}
-	if version == nil || version.Version == "" {
-		return fail("beta_skill_versions", "version response missing version")
+	if err := validateBetaSkillVersionCreate("beta_skill_versions", version, skillID); err != nil {
+		return err
 	}
 
 	got, err := client.Beta.Skills.Versions.Get(ctx, version.Version, anthropic.BetaSkillVersionGetParams{
@@ -57,11 +57,8 @@ func (BetaSkillVersions) Run(ctx context.Context, client anthropic.Client, _ *co
 	if err != nil {
 		return fmt.Errorf("beta skill version get failed: %w", err)
 	}
-	if got == nil || got.Version == "" {
-		return fail("beta_skill_versions", "get version response missing version")
-	}
-	if got.Version != version.Version {
-		return fail("beta_skill_versions", fmt.Sprintf("get version is %q, want %q", got.Version, version.Version))
+	if err := validateBetaSkillVersionGet("beta_skill_versions", got, skillID, version.Version); err != nil {
+		return err
 	}
 
 	page, err := client.Beta.Skills.Versions.List(ctx, skillID, anthropic.BetaSkillVersionListParams{})
@@ -72,14 +69,79 @@ func (BetaSkillVersions) Run(ctx context.Context, client anthropic.Client, _ *co
 		return fail("beta_skill_versions", "list response is nil")
 	}
 	found := false
-	for _, item := range page.Data {
+	for i := range page.Data {
+		item := &page.Data[i]
 		if item.Version == version.Version {
+			if err := validateBetaSkillVersionListItem("beta_skill_versions", item, skillID, version.Version); err != nil {
+				return err
+			}
 			found = true
 			break
 		}
 	}
 	if !found {
 		return fail("beta_skill_versions", "created version missing from list response")
+	}
+	return nil
+}
+
+func validateBetaSkillVersionEnvelope(suite, id, typ, skillID, version string) error {
+	if id == "" {
+		return fail(suite, "skill version missing id")
+	}
+	if typ != "skill_version" {
+		return fail(suite, fmt.Sprintf("skill version type is %q, want skill_version", typ))
+	}
+	if skillID == "" {
+		return fail(suite, "skill version missing skill_id")
+	}
+	if version == "" {
+		return fail(suite, "skill version missing version")
+	}
+	return nil
+}
+
+func validateBetaSkillVersionCreate(suite string, version *anthropic.BetaSkillVersionNewResponse, wantSkillID string) error {
+	if version == nil {
+		return fail(suite, "version response is nil")
+	}
+	if err := validateBetaSkillVersionEnvelope(suite, version.ID, version.Type, version.SkillID, version.Version); err != nil {
+		return err
+	}
+	if version.SkillID != wantSkillID {
+		return fail(suite, fmt.Sprintf("version skill_id is %q, want %q", version.SkillID, wantSkillID))
+	}
+	return nil
+}
+
+func validateBetaSkillVersionGet(suite string, version *anthropic.BetaSkillVersionGetResponse, wantSkillID, wantVersion string) error {
+	if version == nil {
+		return fail(suite, "get version response is nil")
+	}
+	if err := validateBetaSkillVersionEnvelope(suite, version.ID, version.Type, version.SkillID, version.Version); err != nil {
+		return err
+	}
+	if version.SkillID != wantSkillID {
+		return fail(suite, fmt.Sprintf("get skill_id is %q, want %q", version.SkillID, wantSkillID))
+	}
+	if version.Version != wantVersion {
+		return fail(suite, fmt.Sprintf("get version is %q, want %q", version.Version, wantVersion))
+	}
+	return nil
+}
+
+func validateBetaSkillVersionListItem(suite string, version *anthropic.BetaSkillVersionListResponse, wantSkillID, wantVersion string) error {
+	if version == nil {
+		return fail(suite, "list version item is nil")
+	}
+	if err := validateBetaSkillVersionEnvelope(suite, version.ID, version.Type, version.SkillID, version.Version); err != nil {
+		return err
+	}
+	if version.SkillID != wantSkillID {
+		return fail(suite, fmt.Sprintf("list skill_id is %q, want %q", version.SkillID, wantSkillID))
+	}
+	if version.Version != wantVersion {
+		return fail(suite, fmt.Sprintf("list version is %q, want %q", version.Version, wantVersion))
 	}
 	return nil
 }

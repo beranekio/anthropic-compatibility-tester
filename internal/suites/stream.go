@@ -24,7 +24,29 @@ func validateEventStreamContentType(suite string, resp *http.Response) error {
 	return nil
 }
 
-func validateMessageStreamCompleted(suite string, finished bool, hasOutput bool, stopReason string) error {
+func validateMessageStreamStartEnvelope(suite string, msg *anthropic.Message) error {
+	if msg == nil {
+		return fail(suite, "message_start message is nil")
+	}
+	if msg.ID == "" {
+		return fail(suite, "message_start missing id")
+	}
+	if msg.Model == "" {
+		return fail(suite, "message_start missing model")
+	}
+	if string(msg.Type) != "message" {
+		return fail(suite, fmt.Sprintf("message_start type is %q, want message", msg.Type))
+	}
+	if string(msg.Role) != "assistant" {
+		return fail(suite, fmt.Sprintf("message_start role is %q, want assistant", msg.Role))
+	}
+	return nil
+}
+
+func validateMessageStreamCompleted(suite string, finished bool, hasMessageStart bool, hasOutput bool, stopReason string) error {
+	if !hasMessageStart {
+		return fail(suite, "stream missing message_start event")
+	}
 	if !finished {
 		return fail(suite, "stream missing terminal message_stop event")
 	}

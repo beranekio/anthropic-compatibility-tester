@@ -115,14 +115,36 @@ func isMessageBatchCancelAlreadyTerminalError(apiErr *anthropic.Error) bool {
 	}
 }
 
+func isMessageBatchCancelTerminalStatus(status anthropic.MessageBatchProcessingStatus) bool {
+	return status == anthropic.MessageBatchProcessingStatusCanceling ||
+		status == anthropic.MessageBatchProcessingStatusEnded
+}
+
+func confirmMessageBatchCancelTerminalState(ctx context.Context, client anthropic.Client, suite, batchID string) error {
+	got, err := client.Messages.Batches.Get(ctx, batchID)
+	if err != nil {
+		return fmt.Errorf("message batch get failed: %w", err)
+	}
+	if err := validateMessageBatchObject(suite, got); err != nil {
+		return err
+	}
+	if got.ID != batchID {
+		return fail(suite, fmt.Sprintf("batch id is %q, want %q", got.ID, batchID))
+	}
+	if !isMessageBatchCancelTerminalStatus(got.ProcessingStatus) {
+		return fail(suite, fmt.Sprintf("cancel returned terminal error but processing_status is %q, want canceling or ended", got.ProcessingStatus))
+	}
+	return nil
+}
+
 // exerciseMessageBatchCancelEndpoint calls Cancel when the batch already ended before
-// becoming cancelable. Only expected terminal-state errors prove the route exists.
+// becoming cancelable. Terminal-state errors only pass after GET confirms canceling/ended.
 func exerciseMessageBatchCancelEndpoint(ctx context.Context, client anthropic.Client, suite, batchID string) error {
 	canceled, err := client.Messages.Batches.Cancel(ctx, batchID)
 	if err != nil {
 		var apiErr *anthropic.Error
 		if errors.As(err, &apiErr) && isMessageBatchCancelAlreadyTerminalError(apiErr) {
-			return nil
+			return confirmMessageBatchCancelTerminalState(ctx, client, suite, batchID)
 		}
 		return fmt.Errorf("message batch cancel failed: %w", err)
 	}
@@ -311,8 +333,12 @@ func (MessageBatchesList) Run(ctx context.Context, client anthropic.Client, cfg 
 		return fail("message_batches_list", "response is nil")
 	}
 	found := false
-	for _, item := range page.Data {
+	for i := range page.Data {
+		item := &page.Data[i]
 		if item.ID == batchID {
+			if err := validateMessageBatchObject("message_batches_list", item); err != nil {
+				return err
+			}
 			found = true
 			break
 		}

@@ -54,7 +54,10 @@ func (r *Runner) Run(ctx context.Context) ([]Result, error) {
 	results := make([]Result, 0, len(r.Config.Suites))
 
 	for _, name := range r.Config.Suites {
-		suite := registry[name]
+		suite, ok := registry[name]
+		if !ok || suite == nil {
+			return nil, fmt.Errorf("internal error: suite %q not registered", name)
+		}
 
 		fmt.Fprintf(r.Output, "==> running suite %q\n", suite.Name())
 		start := time.Now()

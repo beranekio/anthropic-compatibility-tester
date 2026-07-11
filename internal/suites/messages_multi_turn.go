@@ -37,7 +37,7 @@ func (MessagesMultiTurn) Run(ctx context.Context, client anthropic.Client, cfg *
 			anthropic.NewUserMessage(anthropic.NewTextBlock("What temperature did the weather tool report in Fahrenheit? Reply with the number only.")),
 		},
 		Tools:      weatherTools(),
-		ToolChoice: autoToolChoice(),
+		ToolChoice: noneToolChoice(),
 	})
 	if err != nil {
 		return fmt.Errorf("multi-turn messages request failed: %w", err)

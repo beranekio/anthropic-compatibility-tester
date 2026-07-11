@@ -151,6 +151,9 @@ func (MessageBatchesCancel) Run(ctx context.Context, client anthropic.Client, cf
 	if err := validateMessageBatchObject("message_batches_cancel", canceled); err != nil {
 		return err
 	}
+	if canceled.ID != batchID {
+		return fail("message_batches_cancel", fmt.Sprintf("batch id is %q, want %q", canceled.ID, batchID))
+	}
 	if canceled.ProcessingStatus != anthropic.MessageBatchProcessingStatusCanceling &&
 		canceled.ProcessingStatus != anthropic.MessageBatchProcessingStatusEnded {
 		return fail("message_batches_cancel", fmt.Sprintf("processing_status is %q, want canceling or ended", canceled.ProcessingStatus))

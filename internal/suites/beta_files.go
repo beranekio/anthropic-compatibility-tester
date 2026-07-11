@@ -84,10 +84,30 @@ func (BetaFiles) Run(ctx context.Context, client anthropic.Client, _ *config.Con
 		return err
 	}
 
-	if _, err := client.Beta.Files.Delete(ctx, fileID, anthropic.BetaFileDeleteParams{}); err != nil {
+	deletedResp, err := client.Beta.Files.Delete(ctx, fileID, anthropic.BetaFileDeleteParams{})
+	if err != nil {
 		return fmt.Errorf("beta file delete failed: %w", err)
 	}
+	if err := validateDeletedFile("beta_files", deletedResp, fileID); err != nil {
+		return err
+	}
 	deleted = true
+	return nil
+}
+
+func validateDeletedFile(suite string, deleted *anthropic.DeletedFile, wantID string) error {
+	if deleted == nil {
+		return fail(suite, "delete response is nil")
+	}
+	if deleted.ID == "" {
+		return fail(suite, "delete response missing id")
+	}
+	if deleted.ID != wantID {
+		return fail(suite, fmt.Sprintf("delete id is %q, want %q", deleted.ID, wantID))
+	}
+	if deleted.Type != anthropic.DeletedFileTypeFileDeleted {
+		return fail(suite, fmt.Sprintf("delete type is %q, want file_deleted", deleted.Type))
+	}
 	return nil
 }
 

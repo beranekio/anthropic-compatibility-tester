@@ -31,7 +31,7 @@ func (BetaSkills) Run(ctx context.Context, client anthropic.Client, _ *config.Co
 	}()
 
 	created, err := client.Beta.Skills.New(ctx, anthropic.BetaSkillNewParams{
-		DisplayTitle: anthropic.String("Compatibility Test Skill"),
+		DisplayTitle: anthropic.String(uniqueSkillDisplayTitle()),
 		Files:        []io.Reader{testutil.SmallSkillFileReader()},
 	})
 	if err != nil {
@@ -71,10 +71,34 @@ func (BetaSkills) Run(ctx context.Context, client anthropic.Client, _ *config.Co
 		return fail("beta_skills", "created skill missing from list response")
 	}
 
-	if _, err := client.Beta.Skills.Delete(ctx, skillID, anthropic.BetaSkillDeleteParams{}); err != nil {
+	deletedResp, err := client.Beta.Skills.Delete(ctx, skillID, anthropic.BetaSkillDeleteParams{})
+	if err != nil {
 		return fmt.Errorf("beta skill delete failed: %w", err)
 	}
+	if err := validateBetaSkillDeleteResponse("beta_skills", deletedResp, skillID); err != nil {
+		return err
+	}
 	deleted = true
+	return nil
+}
+
+func uniqueSkillDisplayTitle() string {
+	return fmt.Sprintf("Compatibility Test Skill %d", time.Now().UnixNano())
+}
+
+func validateBetaSkillDeleteResponse(suite string, deleted *anthropic.BetaSkillDeleteResponse, wantID string) error {
+	if deleted == nil {
+		return fail(suite, "delete response is nil")
+	}
+	if deleted.ID == "" {
+		return fail(suite, "delete response missing id")
+	}
+	if deleted.ID != wantID {
+		return fail(suite, fmt.Sprintf("delete id is %q, want %q", deleted.ID, wantID))
+	}
+	if deleted.Type != "skill_deleted" {
+		return fail(suite, fmt.Sprintf("delete type is %q, want skill_deleted", deleted.Type))
+	}
 	return nil
 }
 

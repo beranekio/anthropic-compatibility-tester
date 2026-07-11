@@ -41,6 +41,25 @@ func autoToolChoice() anthropic.ToolChoiceUnionParam {
 	}
 }
 
+func noneToolChoice() anthropic.ToolChoiceUnionParam {
+	return anthropic.ToolChoiceUnionParam{
+		OfNone: &anthropic.ToolChoiceNoneParam{},
+	}
+}
+
+func validateStreamedToolUse(suite string, id, name, inputJSON string) error {
+	if id == "" {
+		return fail(suite, "tool_use block missing id")
+	}
+	if name == "" {
+		return fail(suite, "tool_use block missing name")
+	}
+	if name != weatherToolName {
+		return fail(suite, fmt.Sprintf("tool_use name is %q, want %s", name, weatherToolName))
+	}
+	return validateWeatherToolInput(suite, json.RawMessage(inputJSON))
+}
+
 func validateWeatherToolInput(suite string, input json.RawMessage) error {
 	if len(input) == 0 {
 		return fail(suite, "tool_use missing input")

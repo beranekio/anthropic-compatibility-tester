@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"strings"
 
 	"github.com/anthropics/anthropic-sdk-go"
 	"github.com/anthropics/anthropic-sdk-go/option"
@@ -39,12 +40,31 @@ func (MessagesToolsStream) Run(ctx context.Context, client anthropic.Client, cfg
 	var hasToolUse bool
 	var finished bool
 	var stopReason string
+	var toolUseID, toolUseName string
+	var toolInput strings.Builder
+	var inToolUse bool
 	for stream.Next() {
 		event := stream.Current()
 		switch event.Type {
 		case "content_block_start":
-			if event.AsContentBlockStart().ContentBlock.Type == "tool_use" {
+			block := event.AsContentBlockStart().ContentBlock
+			if block.Type == "tool_use" {
+				inToolUse = true
+				toolUseID = block.ID
+				toolUseName = block.Name
+			}
+		case "content_block_delta":
+			delta := event.AsContentBlockDelta().Delta
+			if inToolUse && delta.Type == "input_json_delta" {
+				toolInput.WriteString(delta.PartialJSON)
+			}
+		case "content_block_stop":
+			if inToolUse {
+				if err := validateStreamedToolUse("messages_tools_stream", toolUseID, toolUseName, toolInput.String()); err != nil {
+					return err
+				}
 				hasToolUse = true
+				inToolUse = false
 			}
 		case "message_stop":
 			finished = true

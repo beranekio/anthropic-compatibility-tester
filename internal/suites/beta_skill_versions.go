@@ -30,7 +30,7 @@ func (BetaSkillVersions) Run(ctx context.Context, client anthropic.Client, _ *co
 	}()
 
 	created, err := client.Beta.Skills.New(ctx, anthropic.BetaSkillNewParams{
-		DisplayTitle: anthropic.String("Compatibility Test Skill"),
+		DisplayTitle: anthropic.String(uniqueSkillDisplayTitle()),
 		Files:        []io.Reader{testutil.SmallSkillFileReader()},
 	})
 	if err != nil {
@@ -60,6 +60,9 @@ func (BetaSkillVersions) Run(ctx context.Context, client anthropic.Client, _ *co
 	if got == nil || got.Version == "" {
 		return fail("beta_skill_versions", "get version response missing version")
 	}
+	if got.Version != version.Version {
+		return fail("beta_skill_versions", fmt.Sprintf("get version is %q, want %q", got.Version, version.Version))
+	}
 
 	page, err := client.Beta.Skills.Versions.List(ctx, skillID, anthropic.BetaSkillVersionListParams{})
 	if err != nil {
@@ -67,6 +70,16 @@ func (BetaSkillVersions) Run(ctx context.Context, client anthropic.Client, _ *co
 	}
 	if page == nil {
 		return fail("beta_skill_versions", "list response is nil")
+	}
+	found := false
+	for _, item := range page.Data {
+		if item.Version == version.Version {
+			found = true
+			break
+		}
+	}
+	if !found {
+		return fail("beta_skill_versions", "created version missing from list response")
 	}
 	return nil
 }

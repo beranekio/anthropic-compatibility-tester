@@ -38,6 +38,8 @@ func (MessagesStream) Run(ctx context.Context, client anthropic.Client, cfg *con
 
 	events := 0
 	var hasMessageStart bool
+	var hasContentBlockStart bool
+	var hasContentBlockStop bool
 	var hasOutput bool
 	var finished bool
 	var stopReason string
@@ -51,11 +53,19 @@ func (MessagesStream) Run(ctx context.Context, client anthropic.Client, cfg *con
 				return err
 			}
 			hasMessageStart = true
+		case "content_block_start":
+			hasContentBlockStart = true
 		case "content_block_delta":
+			// Text deltas are only accepted after content_block_start (lifecycle parity).
+			if !hasContentBlockStart {
+				return fail("messages_stream", "content_block_delta before content_block_start")
+			}
 			delta := event.AsContentBlockDelta().Delta
 			if delta.Text != "" {
 				hasOutput = true
 			}
+		case "content_block_stop":
+			hasContentBlockStop = true
 		case "message_stop":
 			finished = true
 		case "message_delta":
@@ -70,5 +80,15 @@ func (MessagesStream) Run(ctx context.Context, client anthropic.Client, cfg *con
 	if events == 0 {
 		return fail("messages_stream", "stream returned no events")
 	}
-	return validateMessageStreamCompleted("messages_stream", finished, hasMessageStart, hasOutput, stopReason)
+	if err := validateMessageStreamCompleted("messages_stream", finished, hasMessageStart, hasOutput, stopReason); err != nil {
+		return err
+	}
+	// Text-only request: tool_use stop_reason is not a valid compatibility outcome.
+	if stopReason == "tool_use" {
+		return fail("messages_stream", "stop_reason is tool_use on text-only stream")
+	}
+	if hasOutput && (!hasContentBlockStart || !hasContentBlockStop) {
+		return fail("messages_stream", "stream text deltas missing content_block_start/stop lifecycle")
+	}
+	return nil
 }

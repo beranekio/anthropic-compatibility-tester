@@ -30,6 +30,8 @@ func validateMessageBatchObject(suite string, batch *anthropic.MessageBatch) err
 }
 
 func waitForMessageBatchStatus(ctx context.Context, client anthropic.Client, suite, batchID string, accept func(anthropic.MessageBatchProcessingStatus) bool) (*anthropic.MessageBatch, error) {
+	ticker := time.NewTicker(messageBatchPollInterval)
+	defer ticker.Stop()
 	for {
 		got, err := client.Messages.Batches.Get(ctx, batchID)
 		if err != nil {
@@ -47,7 +49,7 @@ func waitForMessageBatchStatus(ctx context.Context, client anthropic.Client, sui
 		select {
 		case <-ctx.Done():
 			return nil, fmt.Errorf("timed out waiting for message batch status: %w", ctx.Err())
-		case <-time.After(messageBatchPollInterval):
+		case <-ticker.C:
 		}
 	}
 }
@@ -55,6 +57,8 @@ func waitForMessageBatchStatus(ctx context.Context, client anthropic.Client, sui
 // waitForMessageBatchCancelable polls until the batch is in_progress (cancelable),
 // already canceling, or ended. Returns skipCancel=true when cancel is unnecessary.
 func waitForMessageBatchCancelable(ctx context.Context, client anthropic.Client, suite, batchID string) (skipCancel bool, err error) {
+	ticker := time.NewTicker(messageBatchPollInterval)
+	defer ticker.Stop()
 	for {
 		got, err := client.Messages.Batches.Get(ctx, batchID)
 		if err != nil {
@@ -76,7 +80,7 @@ func waitForMessageBatchCancelable(ctx context.Context, client anthropic.Client,
 		select {
 		case <-ctx.Done():
 			return false, fmt.Errorf("timed out waiting for cancelable message batch status: %w", ctx.Err())
-		case <-time.After(messageBatchPollInterval):
+		case <-ticker.C:
 		}
 	}
 }
@@ -163,8 +167,10 @@ func exerciseMessageBatchCancelEndpoint(ctx context.Context, client anthropic.Cl
 // MessageBatchesCreate verifies POST /v1/messages/batches.
 type MessageBatchesCreate struct{}
 
-func (MessageBatchesCreate) Name() string        { return "message_batches_create" }
-func (MessageBatchesCreate) Description() string { return "Message batch create (POST /v1/messages/batches)" }
+func (MessageBatchesCreate) Name() string { return "message_batches_create" }
+func (MessageBatchesCreate) Description() string {
+	return "Message batch create (POST /v1/messages/batches)"
+}
 
 func (MessageBatchesCreate) Run(ctx context.Context, client anthropic.Client, cfg *config.Config) error {
 	var batchID string
@@ -199,8 +205,10 @@ func (MessageBatchesCreate) Run(ctx context.Context, client anthropic.Client, cf
 // MessageBatchesGet verifies GET /v1/messages/batches/{id}.
 type MessageBatchesGet struct{}
 
-func (MessageBatchesGet) Name() string        { return "message_batches_get" }
-func (MessageBatchesGet) Description() string { return "Message batch get (GET /v1/messages/batches/{id})" }
+func (MessageBatchesGet) Name() string { return "message_batches_get" }
+func (MessageBatchesGet) Description() string {
+	return "Message batch get (GET /v1/messages/batches/{id})"
+}
 
 func (MessageBatchesGet) Run(ctx context.Context, client anthropic.Client, cfg *config.Config) error {
 	var batchID string
@@ -242,8 +250,10 @@ func (MessageBatchesGet) Run(ctx context.Context, client anthropic.Client, cfg *
 // MessageBatchesCancel verifies POST /v1/messages/batches/{id}/cancel.
 type MessageBatchesCancel struct{}
 
-func (MessageBatchesCancel) Name() string        { return "message_batches_cancel" }
-func (MessageBatchesCancel) Description() string { return "Message batch cancel (POST /v1/messages/batches/{id}/cancel)" }
+func (MessageBatchesCancel) Name() string { return "message_batches_cancel" }
+func (MessageBatchesCancel) Description() string {
+	return "Message batch cancel (POST /v1/messages/batches/{id}/cancel)"
+}
 
 func (MessageBatchesCancel) Run(ctx context.Context, client anthropic.Client, cfg *config.Config) error {
 	var batchID string
@@ -301,8 +311,10 @@ func (MessageBatchesCancel) Run(ctx context.Context, client anthropic.Client, cf
 // MessageBatchesList verifies GET /v1/messages/batches.
 type MessageBatchesList struct{}
 
-func (MessageBatchesList) Name() string        { return "message_batches_list" }
-func (MessageBatchesList) Description() string { return "Message batch list (GET /v1/messages/batches)" }
+func (MessageBatchesList) Name() string { return "message_batches_list" }
+func (MessageBatchesList) Description() string {
+	return "Message batch list (GET /v1/messages/batches)"
+}
 
 func (MessageBatchesList) Run(ctx context.Context, client anthropic.Client, cfg *config.Config) error {
 	var batchID string

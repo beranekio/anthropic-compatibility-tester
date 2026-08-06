@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/anthropics/anthropic-sdk-go"
+	"github.com/anthropics/anthropic-sdk-go/shared/constant"
 	"github.com/beranekio/anthropic-compatibility-tester/internal/config"
 )
 
@@ -26,6 +27,7 @@ func (MessagesJSON) Run(ctx context.Context, client anthropic.Client, cfg *confi
 		},
 		OutputConfig: anthropic.OutputConfigParam{
 			Format: anthropic.JSONOutputFormatParam{
+				Type: constant.ValueOf[constant.JSONSchema](),
 				Schema: map[string]any{
 					"type": "object",
 					"properties": map[string]any{

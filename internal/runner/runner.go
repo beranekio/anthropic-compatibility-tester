@@ -136,7 +136,7 @@ func RunAll(ctx context.Context, cfg *config.Config) (int, error) {
 		return 2, err
 	}
 
-	fmt.Print(FormatSummary(results))
+	fmt.Fprint(runner.Output, FormatSummary(results))
 	code := ExitCode(results)
 	if code != 0 {
 		return code, FirstError(results)

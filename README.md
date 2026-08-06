@@ -26,7 +26,7 @@ All settings can be passed as environment variables or CLI flags.
 
 | Variable | Flag | Required | Default | Description |
 |----------|------|----------|---------|-------------|
-| `ANTHROPIC_BASE_URL` | `--base-url` | yes | — | API base URL (e.g. `https://api.anthropic.com`). The SDK appends paths like `/v1/messages`. Query parameters are not supported. |
+| `ANTHROPIC_BASE_URL` | `--base-url` | yes | — | API base URL without a path (e.g. `https://api.anthropic.com`). Do not include `/v1` or other path segments — the SDK appends paths like `/v1/messages`. Query parameters are not supported. |
 | `ANTHROPIC_API_KEY` | `--api-key` | yes | — | API key sent to the endpoint |
 | `ANTHROPIC_MODEL` | `--model` | no | `claude-sonnet-4-6` | Model for messages suites and the model ID fetched by `models_get` |
 | `TEST_SUITES` | `--suites` | no | `all` | Comma-separated suite names, or preset: `all`/`default`, `extended`, `full` |

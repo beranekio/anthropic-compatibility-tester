@@ -278,6 +278,10 @@ func validateBaseURL(raw string, allowInsecureHTTP bool) error {
 	if u.RawQuery != "" {
 		return fmt.Errorf("%s: query parameters in the base URL are not supported by the Anthropic Go SDK", EnvBaseURL)
 	}
+	// The SDK appends API paths (e.g. v1/messages). A non-empty path like /v1 produces /v1/v1/... .
+	if path := strings.TrimSuffix(u.Path, "/"); path != "" {
+		return fmt.Errorf("%s: base URL must not include a path (omit /v1; the SDK appends API paths)", EnvBaseURL)
+	}
 	if strings.Contains(strings.ToLower(raw), "%2f") {
 		return fmt.Errorf("%s: encoded path separators (%%2F) are not supported by the Anthropic Go SDK", EnvBaseURL)
 	}

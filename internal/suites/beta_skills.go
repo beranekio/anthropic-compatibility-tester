@@ -26,7 +26,7 @@ func (BetaSkills) Run(ctx context.Context, client anthropic.Client, _ *config.Co
 		if skillID != "" && !deleted {
 			cleanupCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 			defer cancel()
-			_, _ = client.Beta.Skills.Delete(cleanupCtx, skillID, anthropic.BetaSkillDeleteParams{})
+			cleanupBetaSkill(cleanupCtx, client, skillID)
 		}
 	}()
 
@@ -74,6 +74,11 @@ func (BetaSkills) Run(ctx context.Context, client anthropic.Client, _ *config.Co
 		return fail("beta_skills", "created skill missing from list response")
 	}
 
+	// The Skills API rejects deleting a skill that still has versions.
+	if err := deleteBetaSkillVersions(ctx, client, "beta_skills", skillID); err != nil {
+		return err
+	}
+
 	deletedResp, err := client.Beta.Skills.Delete(ctx, skillID, anthropic.BetaSkillDeleteParams{})
 	if err != nil {
 		return fmt.Errorf("beta skill delete failed: %w", err)
@@ -87,6 +92,36 @@ func (BetaSkills) Run(ctx context.Context, client anthropic.Client, _ *config.Co
 
 func uniqueSkillDisplayTitle() string {
 	return fmt.Sprintf("Compatibility Test Skill %d", time.Now().UnixNano())
+}
+
+// deleteBetaSkillVersions lists and deletes every version for skillID.
+// Real Anthropic rejects skill delete while versions remain.
+func deleteBetaSkillVersions(ctx context.Context, client anthropic.Client, suite, skillID string) error {
+	pager := client.Beta.Skills.Versions.ListAutoPaging(ctx, skillID, anthropic.BetaSkillVersionListParams{})
+	for pager.Next() {
+		version := pager.Current().Version
+		if version == "" {
+			return fail(suite, "skill version list item missing version")
+		}
+		if _, err := client.Beta.Skills.Versions.Delete(ctx, version, anthropic.BetaSkillVersionDeleteParams{
+			SkillID: skillID,
+		}); err != nil {
+			return fmt.Errorf("beta skill version delete failed: %w", err)
+		}
+	}
+	if err := pager.Err(); err != nil {
+		return fmt.Errorf("beta skill versions list failed: %w", err)
+	}
+	return nil
+}
+
+// cleanupBetaSkill best-effort removes all versions then the skill.
+func cleanupBetaSkill(ctx context.Context, client anthropic.Client, skillID string) {
+	if skillID == "" {
+		return
+	}
+	_ = deleteBetaSkillVersions(ctx, client, "beta_skills", skillID)
+	_, _ = client.Beta.Skills.Delete(ctx, skillID, anthropic.BetaSkillDeleteParams{})
 }
 
 func validateBetaSkillDeleteResponse(suite string, deleted *anthropic.BetaSkillDeleteResponse, wantID string) error {

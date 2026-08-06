@@ -25,7 +25,8 @@ func (BetaSkillVersions) Run(ctx context.Context, client anthropic.Client, _ *co
 		if skillID != "" {
 			cleanupCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 			defer cancel()
-			_, _ = client.Beta.Skills.Delete(cleanupCtx, skillID, anthropic.BetaSkillDeleteParams{})
+			// Real Anthropic rejects skill delete while versions remain.
+			cleanupBetaSkill(cleanupCtx, client, skillID)
 		}
 	}()
 

@@ -66,6 +66,7 @@ func newServerWithRoutes() *Server {
 	mux.HandleFunc("POST /v1/skills/{id}/versions", s.handleBetaSkillVersionCreate)
 	mux.HandleFunc("GET /v1/skills/{id}/versions", s.handleBetaSkillVersionList)
 	mux.HandleFunc("GET /v1/skills/{id}/versions/{version}", s.handleBetaSkillVersionGet)
+	mux.HandleFunc("DELETE /v1/skills/{id}/versions/{version}", s.handleBetaSkillVersionDelete)
 
 	return s
 }
@@ -408,6 +409,11 @@ func (s *Server) handleBetaSkillList(w http.ResponseWriter, _ *http.Request) {
 
 func (s *Server) handleBetaSkillDelete(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
+	// Match real API: cannot delete a skill that still has versions.
+	if len(s.skillStore.listVersions(id)) > 0 {
+		writeError(w, http.StatusBadRequest, "skill has versions; delete versions first", "invalid_request_error")
+		return
+	}
 	if !s.skillStore.delete(id) {
 		writeError(w, http.StatusNotFound, "skill not found", "not_found_error")
 		return
@@ -448,6 +454,16 @@ func (s *Server) handleBetaSkillVersionGet(w http.ResponseWriter, r *http.Reques
 		return
 	}
 	writeJSON(w, payload)
+}
+
+func (s *Server) handleBetaSkillVersionDelete(w http.ResponseWriter, r *http.Request) {
+	skillID := r.PathValue("id")
+	version := r.PathValue("version")
+	if !s.skillStore.deleteVersion(skillID, version) {
+		writeError(w, http.StatusNotFound, "skill version not found", "not_found_error")
+		return
+	}
+	writeJSON(w, map[string]any{"id": version, "type": "skill_version_deleted"})
 }
 
 // multipartHasUploadedFiles reports whether the request includes at least one

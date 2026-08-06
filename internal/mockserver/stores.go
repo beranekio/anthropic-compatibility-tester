@@ -239,6 +239,29 @@ func (s *skillStore) listVersions(skillID string) []map[string]any {
 	return out
 }
 
+func (s *skillStore) deleteVersion(skillID, version string) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	entry, ok := s.skills[skillID]
+	if !ok {
+		return false
+	}
+	if _, ok := entry.versions[version]; !ok {
+		return false
+	}
+	delete(entry.versions, version)
+	// Keep latest_version coherent after deletes.
+	if latest, _ := entry.metadata["latest_version"].(string); latest == version {
+		entry.metadata["latest_version"] = ""
+		for v := range entry.versions {
+			entry.metadata["latest_version"] = v
+			break
+		}
+	}
+	s.skills[skillID] = entry
+	return true
+}
+
 func cloneMap(in map[string]any) map[string]any {
 	out := make(map[string]any, len(in))
 	for k, v := range in {

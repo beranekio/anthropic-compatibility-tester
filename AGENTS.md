@@ -158,6 +158,73 @@ When extending or reviewing `internal/mockserver`:
 - **Registration drift** — missing `suitespec`, `FullSuites`, `ExtendedSuites`, or `runner_test` suite list causes confusing failures.
 - **SDK version** — bump `github.com/anthropics/anthropic-sdk-go` in `go.mod` only when needed; run `go test ./...` after.
 
+## Agent authorship (PRs, issues, comments)
+
+When an AI coding agent opens a PR or issue, or leaves a non-trivial PR/issue comment, make agent origin **obvious** to human reviewers.
+
+### Labels
+
+Apply the agent label on **every PR** (and on issues the agent creates):
+
+| Label | Use for |
+|-------|---------|
+| `agent-grok` | Grok / xAI agents (Grok Build, etc.) |
+
+- Also apply topical labels when they fit (`enhancement`, `documentation`, `bug`, …).
+- If you are a different agent family and no `agent-<name>` label exists, create one (lowercase, hyphenated; description: `Issue or PR opened by <Agent>`), then apply it. Prefer reusing an existing agent label over inventing synonyms.
+- Do **not** apply agent labels to human-authored PRs or issues.
+
+Example when opening a PR with `gh`:
+
+```bash
+gh pr create --label agent-grok --label documentation --title "..." --body "..."
+```
+
+If the PR already exists without the label:
+
+```bash
+gh pr edit <NUMBER> --add-label agent-grok
+```
+
+### PR (and issue) body — required Authorship section
+
+End every agent-created PR or issue body with an **Authorship** section:
+
+```markdown
+## Authorship
+
+- **Origin:** AI coding agent (not a human)
+- **Agent:** Grok (Grok Build / xAI)
+- **Model:** <model id or product name, e.g. grok-4.5>
+```
+
+Rules:
+
+- State clearly that the change was produced by an **AI coding agent**, not a human author.
+- Name the **agent product/family** (e.g. Grok / Grok Build, Claude Code, Codex, Cursor Agent).
+- Name the **model** actually used for this work when known (slug or product name). If the exact slug is unknown, use the best available product identifier and say so (e.g. `Model: Grok (exact slug unknown)`).
+- Keep Authorship at the **bottom** of the body so Summary / Test plan stay first.
+- Do not impersonate a human maintainer or omit Authorship “to look cleaner.”
+
+### PR and issue comments
+
+For non-trivial comments (review replies, implementation notes, rebase notices), include a one-line footer:
+
+```text
+— Agent: Grok (Grok Build / xAI) · Model: <model id>
+```
+
+Trivial emoji reactions or single-word acks do not need a footer. Status comments that explain decisions or push follow-ups **do**.
+
+### PR checklist (agent-specific)
+
+In addition to the code checklist below:
+
+- [ ] `agent-<name>` label applied (e.g. `agent-grok`)
+- [ ] Topical labels applied when appropriate
+- [ ] PR/issue body includes **Authorship** (agent + model)
+- [ ] Non-trivial comments include the agent/model footer
+
 ## PR checklist
 
 - [ ] `go test ./...` passes
@@ -167,5 +234,6 @@ When extending or reviewing `internal/mockserver`:
 - [ ] `config_test.go` updated if config parsing, validation, or presets changed
 - [ ] Suite table updated in `docs/suites.md`; README updated only for user-facing changes
 - [ ] Focused diff — no unrelated changes
+- [ ] Agent-authored PR: label + Authorship section (see [Agent authorship](#agent-authorship-prs-issues-comments))
 
 Follow these instructions exactly. When working in subdirectories not listed above, check for additional project instruction files (AGENTS.md, Claude.md, etc.).

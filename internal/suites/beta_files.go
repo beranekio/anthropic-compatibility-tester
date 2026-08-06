@@ -131,6 +131,10 @@ func validateFileMetadata(suite string, file *anthropic.FileMetadata) error {
 	if string(file.Type) != "file" {
 		return fail(suite, fmt.Sprintf("file type is %q, want file", file.Type))
 	}
+	wantSize := int64(len(testutil.SmallTextFileBytes()))
+	if file.SizeBytes != wantSize {
+		return fail(suite, fmt.Sprintf("file size_bytes is %d, want %d", file.SizeBytes, wantSize))
+	}
 	return nil
 }
 

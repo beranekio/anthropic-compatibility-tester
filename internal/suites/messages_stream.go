@@ -38,8 +38,12 @@ func (MessagesStream) Run(ctx context.Context, client anthropic.Client, cfg *con
 
 	events := 0
 	var hasMessageStart bool
-	var hasContentBlockStart bool
-	var hasContentBlockStop bool
+	// Track the currently open content block (Anthropic streams blocks sequentially),
+	// similar to messages_tools_stream's inToolUse. Global "ever seen" flags would allow
+	// text deltas from a later block to borrow start/stop events from an earlier one.
+	var inContentBlock bool
+	var textInOpenBlock bool
+	var completedTextBlock bool
 	var hasOutput bool
 	var finished bool
 	var stopReason string
@@ -54,18 +58,29 @@ func (MessagesStream) Run(ctx context.Context, client anthropic.Client, cfg *con
 			}
 			hasMessageStart = true
 		case "content_block_start":
-			hasContentBlockStart = true
+			if inContentBlock {
+				return fail("messages_stream", "content_block_start while a content block is already open")
+			}
+			inContentBlock = true
+			textInOpenBlock = false
 		case "content_block_delta":
-			// Text deltas are only accepted after content_block_start (lifecycle parity).
-			if !hasContentBlockStart {
-				return fail("messages_stream", "content_block_delta before content_block_start")
+			if !inContentBlock {
+				return fail("messages_stream", "content_block_delta without an open content_block_start")
 			}
 			delta := event.AsContentBlockDelta().Delta
 			if delta.Text != "" {
 				hasOutput = true
+				textInOpenBlock = true
 			}
 		case "content_block_stop":
-			hasContentBlockStop = true
+			if !inContentBlock {
+				return fail("messages_stream", "content_block_stop without an open content_block_start")
+			}
+			if textInOpenBlock {
+				completedTextBlock = true
+			}
+			inContentBlock = false
+			textInOpenBlock = false
 		case "message_stop":
 			finished = true
 		case "message_delta":
@@ -87,8 +102,11 @@ func (MessagesStream) Run(ctx context.Context, client anthropic.Client, cfg *con
 	if stopReason == "tool_use" {
 		return fail("messages_stream", "stop_reason is tool_use on text-only stream")
 	}
-	if hasOutput && (!hasContentBlockStart || !hasContentBlockStop) {
-		return fail("messages_stream", "stream text deltas missing content_block_start/stop lifecycle")
+	if inContentBlock {
+		return fail("messages_stream", "stream ended with an open content block (missing content_block_stop)")
+	}
+	if hasOutput && !completedTextBlock {
+		return fail("messages_stream", "stream text deltas missing content_block start/stop lifecycle on the same block")
 	}
 	return nil
 }

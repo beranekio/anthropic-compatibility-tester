@@ -2,6 +2,7 @@ package mockserver
 
 import (
 	"bytes"
+	"encoding/json"
 	"io"
 	"mime/multipart"
 	"net/http"
@@ -114,6 +115,52 @@ func TestHandlerRejectsSkillCreateWithTextFileFieldOnly(t *testing.T) {
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusBadRequest {
 		t.Fatalf("status code = %d, want 400 (text form field is not a skill file part)", resp.StatusCode)
+	}
+}
+
+func TestHandlerRejectsSkillVersionCreateWithoutFiles(t *testing.T) {
+	ts := httptest.NewServer(Handler())
+	t.Cleanup(ts.Close)
+
+	// Create a skill first so a missing-files version create is not masked by 404.
+	var createBody bytes.Buffer
+	createW := multipart.NewWriter(&createBody)
+	part, err := createW.CreateFormFile("files", "compatibility-test-skill/SKILL.md")
+	if err != nil {
+		t.Fatalf("CreateFormFile() error = %v", err)
+	}
+	if _, err := io.WriteString(part, "---\nname: test\ndescription: test\n---\n"); err != nil {
+		t.Fatalf("WriteString() error = %v", err)
+	}
+	if err := createW.Close(); err != nil {
+		t.Fatalf("multipart Close() error = %v", err)
+	}
+	createResp, err := http.Post(ts.URL+"/v1/skills", createW.FormDataContentType(), &createBody)
+	if err != nil {
+		t.Fatalf("skill create http.Post() error = %v", err)
+	}
+	createPayload, err := io.ReadAll(createResp.Body)
+	_ = createResp.Body.Close()
+	if err != nil {
+		t.Fatalf("read create body error = %v", err)
+	}
+	if createResp.StatusCode != http.StatusOK {
+		t.Fatalf("skill create status = %d, want 200, body = %s", createResp.StatusCode, createPayload)
+	}
+	var created struct {
+		ID string `json:"id"`
+	}
+	if err := json.Unmarshal(createPayload, &created); err != nil || created.ID == "" {
+		t.Fatalf("skill create response missing id: %s (err=%v)", createPayload, err)
+	}
+
+	resp, err := http.Post(ts.URL+"/v1/skills/"+created.ID+"/versions", "application/json", strings.NewReader(`{}`))
+	if err != nil {
+		t.Fatalf("version create http.Post() error = %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("version create status = %d, want 400 (missing skill files)", resp.StatusCode)
 	}
 }
 

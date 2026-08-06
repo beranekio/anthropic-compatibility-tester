@@ -120,7 +120,7 @@ type messageInput struct {
 func (s *Server) handleMessages(w http.ResponseWriter, r *http.Request) {
 	body, err := io.ReadAll(r.Body)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		writeError(w, http.StatusBadRequest, "failed to read request body", "invalid_request_error")
 		return
 	}
 
@@ -240,7 +240,7 @@ func messageRequestHasImage(messages []messageInput) bool {
 func handleCompletions(w http.ResponseWriter, r *http.Request) {
 	body, err := io.ReadAll(r.Body)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		writeError(w, http.StatusBadRequest, "failed to read request body", "invalid_request_error")
 		return
 	}
 	var req struct {
@@ -453,6 +453,7 @@ func (s *Server) handleBetaSkillVersionGet(w http.ResponseWriter, r *http.Reques
 // multipartHasUploadedFiles reports whether the request includes at least one
 // non-empty multipart file part (skill create/version create require a bundle).
 // Only MultipartForm.File parts count — a text form field named "file" is not enough.
+// Prefer FileHeader.Size so we do not read entire uploads into memory just to check presence.
 func multipartHasUploadedFiles(r *http.Request) bool {
 	if err := r.ParseMultipartForm(10 << 20); err != nil {
 		return false
@@ -462,16 +463,24 @@ func multipartHasUploadedFiles(r *http.Request) bool {
 	}
 	for _, files := range r.MultipartForm.File {
 		for _, header := range files {
+			if header == nil || header.Filename == "" {
+				continue
+			}
+			if header.Size > 0 {
+				return true
+			}
+			// Size can be unset by some clients; probe a single byte instead of ReadAll.
 			file, err := header.Open()
 			if err != nil {
 				continue
 			}
-			content, err := io.ReadAll(file)
+			var b [1]byte
+			n, readErr := file.Read(b[:])
 			_ = file.Close()
-			if err != nil {
+			if readErr != nil && readErr != io.EOF {
 				continue
 			}
-			if header.Filename != "" && len(content) > 0 {
+			if n > 0 {
 				return true
 			}
 		}

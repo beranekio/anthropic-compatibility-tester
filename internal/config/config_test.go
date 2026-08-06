@@ -67,3 +67,33 @@ func TestLoadHelpExitsCleanly(t *testing.T) {
 		t.Fatalf("expected flag.ErrHelp, got %v", err)
 	}
 }
+
+func TestLoadAcceptsBaseURLWithTrailingSlash(t *testing.T) {
+	t.Setenv(EnvBaseURL, "https://api.anthropic.com/")
+	t.Setenv(EnvAPIKey, "test-key")
+
+	cfg, err := Load([]string{})
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+	// Load trims a trailing slash before validation and use.
+	if cfg.BaseURL != "https://api.anthropic.com" {
+		t.Fatalf("BaseURL = %q, want https://api.anthropic.com", cfg.BaseURL)
+	}
+}
+
+func TestLoadRejectsBaseURLWithPath(t *testing.T) {
+	t.Setenv(EnvAPIKey, "test-key")
+
+	for _, raw := range []string{
+		"https://api.anthropic.com/v1",
+		"https://api.anthropic.com/v1/",
+		"https://gateway.example/proxy",
+	} {
+		t.Setenv(EnvBaseURL, raw)
+		_, err := Load([]string{})
+		if err == nil || !strings.Contains(err.Error(), "must not include a path") {
+			t.Fatalf("base URL %q: expected path rejection, got %v", raw, err)
+		}
+	}
+}

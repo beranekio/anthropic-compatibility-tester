@@ -125,7 +125,10 @@ func (s *Server) handleMessages(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var req messageRequest
-	_ = json.Unmarshal(body, &req)
+	if err := json.Unmarshal(body, &req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid JSON request body", "invalid_request_error")
+		return
+	}
 
 	if req.Model == "oct-invalid-model" {
 		writeError(w, http.StatusBadRequest, "model: "+req.Model+" not found", "invalid_request_error")
@@ -167,29 +170,23 @@ func writeMessageStream(w http.ResponseWriter, req *messageRequest) {
 	w.Header().Set("Content-Type", "text/event-stream")
 	w.WriteHeader(http.StatusOK)
 
-	message := mockMessagePayload("one two three", "end_turn", nil)
-	if len(req.Tools) > 0 && !messageRequestHasToolResult(req.Messages) {
-		message = mockMessagePayload("", "tool_use", []map[string]any{{
-			"type":  "tool_use",
-			"id":    "toolu_mock_1",
-			"name":  "get_weather",
-			"input": map[string]any{"location": "San Francisco, CA"},
-		}})
-	}
-
+	// message_start carries an empty in-progress envelope; final content arrives via
+	// content_block_* events and stop_reason via message_delta (real API shape).
+	startMessage := mockMessageStartPayload()
+	stopReason := "end_turn"
 	events := []map[string]any{
-		{"type": "message_start", "message": message},
+		{"type": "message_start", "message": startMessage},
 		{"type": "content_block_start", "index": 0, "content_block": map[string]any{"type": "text", "text": ""}},
 		{"type": "content_block_delta", "index": 0, "delta": map[string]any{"type": "text_delta", "text": "one"}},
 		{"type": "content_block_delta", "index": 0, "delta": map[string]any{"type": "text_delta", "text": " two three"}},
 		{"type": "content_block_stop", "index": 0},
-		{"type": "message_delta", "delta": map[string]any{"stop_reason": message["stop_reason"], "stop_sequence": nil}},
+		{"type": "message_delta", "delta": map[string]any{"stop_reason": stopReason, "stop_sequence": nil}},
 		{"type": "message_stop"},
 	}
 
 	if len(req.Tools) > 0 && !messageRequestHasToolResult(req.Messages) {
 		events = []map[string]any{
-			{"type": "message_start", "message": message},
+			{"type": "message_start", "message": startMessage},
 			{"type": "content_block_start", "index": 0, "content_block": map[string]any{
 				"type": "tool_use", "id": "toolu_mock_1", "name": "get_weather", "input": map[string]any{},
 			}},
@@ -249,7 +246,10 @@ func handleCompletions(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Stream bool `json:"stream"`
 	}
-	_ = json.Unmarshal(body, &req)
+	if err := json.Unmarshal(body, &req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid JSON request body", "invalid_request_error")
+		return
+	}
 
 	if req.Stream {
 		w.Header().Set("Content-Type", "text/event-stream")
@@ -379,7 +379,11 @@ func (s *Server) handleBetaFileContent(w http.ResponseWriter, r *http.Request) {
 	_, _ = w.Write(content)
 }
 
-func (s *Server) handleBetaSkillCreate(w http.ResponseWriter, _ *http.Request) {
+func (s *Server) handleBetaSkillCreate(w http.ResponseWriter, r *http.Request) {
+	if !multipartHasUploadedFiles(r) {
+		writeError(w, http.StatusBadRequest, "missing skill files", "invalid_request_error")
+		return
+	}
 	writeJSON(w, s.skillStore.create())
 }
 
@@ -413,6 +417,10 @@ func (s *Server) handleBetaSkillDelete(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleBetaSkillVersionCreate(w http.ResponseWriter, r *http.Request) {
 	skillID := r.PathValue("id")
+	if !multipartHasUploadedFiles(r) {
+		writeError(w, http.StatusBadRequest, "missing skill files", "invalid_request_error")
+		return
+	}
 	payload, ok := s.skillStore.addVersion(skillID)
 	if !ok {
 		writeError(w, http.StatusNotFound, "skill not found", "not_found_error")
@@ -440,6 +448,13 @@ func (s *Server) handleBetaSkillVersionGet(w http.ResponseWriter, r *http.Reques
 		return
 	}
 	writeJSON(w, payload)
+}
+
+// multipartHasUploadedFiles reports whether the request includes at least one
+// non-empty multipart file part (skill create/version create require a bundle).
+func multipartHasUploadedFiles(r *http.Request) bool {
+	filename, content := parseMultipartFile(r)
+	return filename != "" && len(content) > 0
 }
 
 func parseMultipartFile(r *http.Request) (string, []byte) {

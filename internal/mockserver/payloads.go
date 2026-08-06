@@ -82,6 +82,24 @@ func mockMessagePayload(text string, stopReason string, content []map[string]any
 	}
 }
 
+// mockMessageStartPayload is the in-progress envelope for message_start stream events
+// (empty content, no stop_reason), matching real Anthropic streaming behavior.
+func mockMessageStartPayload() map[string]any {
+	return map[string]any{
+		"id":            "msg_mock_1",
+		"type":          "message",
+		"role":          "assistant",
+		"model":         defaultModelID,
+		"content":       []any{},
+		"stop_reason":   nil,
+		"stop_sequence": nil,
+		"usage": map[string]any{
+			"input_tokens":  10,
+			"output_tokens": 0,
+		},
+	}
+}
+
 func mockMessageBatchPayload(id, status string) map[string]any {
 	now := time.Now().UTC()
 	created := now.Format(time.RFC3339)

@@ -101,9 +101,9 @@ func handleCountTokens(w http.ResponseWriter, _ *http.Request) {
 }
 
 type messageRequest struct {
-	Model        string          `json:"model"`
-	Stream       bool            `json:"stream"`
-	Messages     []messageInput  `json:"messages"`
+	Model        string            `json:"model"`
+	Stream       bool              `json:"stream"`
+	Messages     []messageInput    `json:"messages"`
 	Tools        []json.RawMessage `json:"tools"`
 	OutputConfig *struct {
 		Format *struct {
@@ -452,9 +452,31 @@ func (s *Server) handleBetaSkillVersionGet(w http.ResponseWriter, r *http.Reques
 
 // multipartHasUploadedFiles reports whether the request includes at least one
 // non-empty multipart file part (skill create/version create require a bundle).
+// Only MultipartForm.File parts count — a text form field named "file" is not enough.
 func multipartHasUploadedFiles(r *http.Request) bool {
-	filename, content := parseMultipartFile(r)
-	return filename != "" && len(content) > 0
+	if err := r.ParseMultipartForm(10 << 20); err != nil {
+		return false
+	}
+	if r.MultipartForm == nil {
+		return false
+	}
+	for _, files := range r.MultipartForm.File {
+		for _, header := range files {
+			file, err := header.Open()
+			if err != nil {
+				continue
+			}
+			content, err := io.ReadAll(file)
+			_ = file.Close()
+			if err != nil {
+				continue
+			}
+			if header.Filename != "" && len(content) > 0 {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 func parseMultipartFile(r *http.Request) (string, []byte) {

@@ -1,7 +1,9 @@
 package mockserver
 
 import (
+	"bytes"
 	"io"
+	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -64,6 +66,20 @@ func TestHandlerRejectsInvalidJSONMessages(t *testing.T) {
 	}
 }
 
+func TestHandlerRejectsInvalidJSONCompletions(t *testing.T) {
+	ts := httptest.NewServer(Handler())
+	t.Cleanup(ts.Close)
+
+	resp, err := http.Post(ts.URL+"/v1/complete", "application/json", strings.NewReader(`{not-json`))
+	if err != nil {
+		t.Fatalf("http.Post() error = %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("status code = %d, want 400", resp.StatusCode)
+	}
+}
+
 func TestHandlerRejectsSkillCreateWithoutFiles(t *testing.T) {
 	ts := httptest.NewServer(Handler())
 	t.Cleanup(ts.Close)
@@ -75,6 +91,29 @@ func TestHandlerRejectsSkillCreateWithoutFiles(t *testing.T) {
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusBadRequest {
 		t.Fatalf("status code = %d, want 400", resp.StatusCode)
+	}
+}
+
+func TestHandlerRejectsSkillCreateWithTextFileFieldOnly(t *testing.T) {
+	ts := httptest.NewServer(Handler())
+	t.Cleanup(ts.Close)
+
+	var body bytes.Buffer
+	w := multipart.NewWriter(&body)
+	if err := w.WriteField("file", "not-a-real-file-part"); err != nil {
+		t.Fatalf("WriteField() error = %v", err)
+	}
+	if err := w.Close(); err != nil {
+		t.Fatalf("multipart Close() error = %v", err)
+	}
+
+	resp, err := http.Post(ts.URL+"/v1/skills", w.FormDataContentType(), &body)
+	if err != nil {
+		t.Fatalf("http.Post() error = %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("status code = %d, want 400 (text form field is not a skill file part)", resp.StatusCode)
 	}
 }
 

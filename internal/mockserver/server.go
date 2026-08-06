@@ -101,9 +101,9 @@ func handleCountTokens(w http.ResponseWriter, _ *http.Request) {
 }
 
 type messageRequest struct {
-	Model        string          `json:"model"`
-	Stream       bool            `json:"stream"`
-	Messages     []messageInput  `json:"messages"`
+	Model        string            `json:"model"`
+	Stream       bool              `json:"stream"`
+	Messages     []messageInput    `json:"messages"`
 	Tools        []json.RawMessage `json:"tools"`
 	OutputConfig *struct {
 		Format *struct {
@@ -120,12 +120,15 @@ type messageInput struct {
 func (s *Server) handleMessages(w http.ResponseWriter, r *http.Request) {
 	body, err := io.ReadAll(r.Body)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		writeError(w, http.StatusBadRequest, "failed to read request body", "invalid_request_error")
 		return
 	}
 
 	var req messageRequest
-	_ = json.Unmarshal(body, &req)
+	if err := json.Unmarshal(body, &req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid JSON request body", "invalid_request_error")
+		return
+	}
 
 	if req.Model == "oct-invalid-model" {
 		writeError(w, http.StatusBadRequest, "model: "+req.Model+" not found", "invalid_request_error")
@@ -167,29 +170,23 @@ func writeMessageStream(w http.ResponseWriter, req *messageRequest) {
 	w.Header().Set("Content-Type", "text/event-stream")
 	w.WriteHeader(http.StatusOK)
 
-	message := mockMessagePayload("one two three", "end_turn", nil)
-	if len(req.Tools) > 0 && !messageRequestHasToolResult(req.Messages) {
-		message = mockMessagePayload("", "tool_use", []map[string]any{{
-			"type":  "tool_use",
-			"id":    "toolu_mock_1",
-			"name":  "get_weather",
-			"input": map[string]any{"location": "San Francisco, CA"},
-		}})
-	}
-
+	// message_start carries an empty in-progress envelope; final content arrives via
+	// content_block_* events and stop_reason via message_delta (real API shape).
+	startMessage := mockMessageStartPayload()
+	stopReason := "end_turn"
 	events := []map[string]any{
-		{"type": "message_start", "message": message},
+		{"type": "message_start", "message": startMessage},
 		{"type": "content_block_start", "index": 0, "content_block": map[string]any{"type": "text", "text": ""}},
 		{"type": "content_block_delta", "index": 0, "delta": map[string]any{"type": "text_delta", "text": "one"}},
 		{"type": "content_block_delta", "index": 0, "delta": map[string]any{"type": "text_delta", "text": " two three"}},
 		{"type": "content_block_stop", "index": 0},
-		{"type": "message_delta", "delta": map[string]any{"stop_reason": message["stop_reason"], "stop_sequence": nil}},
+		{"type": "message_delta", "delta": map[string]any{"stop_reason": stopReason, "stop_sequence": nil}},
 		{"type": "message_stop"},
 	}
 
 	if len(req.Tools) > 0 && !messageRequestHasToolResult(req.Messages) {
 		events = []map[string]any{
-			{"type": "message_start", "message": message},
+			{"type": "message_start", "message": startMessage},
 			{"type": "content_block_start", "index": 0, "content_block": map[string]any{
 				"type": "tool_use", "id": "toolu_mock_1", "name": "get_weather", "input": map[string]any{},
 			}},
@@ -243,13 +240,16 @@ func messageRequestHasImage(messages []messageInput) bool {
 func handleCompletions(w http.ResponseWriter, r *http.Request) {
 	body, err := io.ReadAll(r.Body)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		writeError(w, http.StatusBadRequest, "failed to read request body", "invalid_request_error")
 		return
 	}
 	var req struct {
 		Stream bool `json:"stream"`
 	}
-	_ = json.Unmarshal(body, &req)
+	if err := json.Unmarshal(body, &req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid JSON request body", "invalid_request_error")
+		return
+	}
 
 	if req.Stream {
 		w.Header().Set("Content-Type", "text/event-stream")
@@ -379,7 +379,11 @@ func (s *Server) handleBetaFileContent(w http.ResponseWriter, r *http.Request) {
 	_, _ = w.Write(content)
 }
 
-func (s *Server) handleBetaSkillCreate(w http.ResponseWriter, _ *http.Request) {
+func (s *Server) handleBetaSkillCreate(w http.ResponseWriter, r *http.Request) {
+	if !multipartHasUploadedFiles(r) {
+		writeError(w, http.StatusBadRequest, "missing skill files", "invalid_request_error")
+		return
+	}
 	writeJSON(w, s.skillStore.create())
 }
 
@@ -413,6 +417,10 @@ func (s *Server) handleBetaSkillDelete(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleBetaSkillVersionCreate(w http.ResponseWriter, r *http.Request) {
 	skillID := r.PathValue("id")
+	if !multipartHasUploadedFiles(r) {
+		writeError(w, http.StatusBadRequest, "missing skill files", "invalid_request_error")
+		return
+	}
 	payload, ok := s.skillStore.addVersion(skillID)
 	if !ok {
 		writeError(w, http.StatusNotFound, "skill not found", "not_found_error")
@@ -440,6 +448,44 @@ func (s *Server) handleBetaSkillVersionGet(w http.ResponseWriter, r *http.Reques
 		return
 	}
 	writeJSON(w, payload)
+}
+
+// multipartHasUploadedFiles reports whether the request includes at least one
+// non-empty multipart file part (skill create/version create require a bundle).
+// Only MultipartForm.File parts count — a text form field named "file" is not enough.
+// Prefer FileHeader.Size so we do not read entire uploads into memory just to check presence.
+func multipartHasUploadedFiles(r *http.Request) bool {
+	if err := r.ParseMultipartForm(10 << 20); err != nil {
+		return false
+	}
+	if r.MultipartForm == nil {
+		return false
+	}
+	for _, files := range r.MultipartForm.File {
+		for _, header := range files {
+			if header == nil || header.Filename == "" {
+				continue
+			}
+			if header.Size > 0 {
+				return true
+			}
+			// Size can be unset by some clients; probe a single byte instead of ReadAll.
+			file, err := header.Open()
+			if err != nil {
+				continue
+			}
+			var b [1]byte
+			n, readErr := file.Read(b[:])
+			_ = file.Close()
+			if readErr != nil && readErr != io.EOF {
+				continue
+			}
+			if n > 0 {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 func parseMultipartFile(r *http.Request) (string, []byte) {

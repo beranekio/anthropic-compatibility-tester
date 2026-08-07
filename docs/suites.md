@@ -8,7 +8,7 @@ Every suite calls a real method on the [official Anthropic Go SDK](https://githu
 |--------|----------------------|-------|
 | Default | `all` or `default` | `models`, `models_get`, `messages`, `messages_stream` |
 | Extended | `extended` | default plus tools, JSON, multi-turn, token counting, vision, thinking, prompt cache, documents, legacy completions, message batches (including results/delete), beta files, and `error_responses` |
-| Full | `full` | every registered suite, including deprecated completions and beta skills |
+| Full | `full` | every registered suite, including deprecated completions, beta skills, beta models/messages twins, and server tools |
 
 Deprecated legacy completions suites (`completions`, `completions_stream`) are **opt-in** — included in `extended` and `full`, but not in `default`. They are labeled `(deprecated)` in `--list-suites`.
 
@@ -41,6 +41,12 @@ Deprecated legacy completions suites (`completions`, `completions_stream`) are *
 | `beta_skills` | `client.Beta.Skills.New`, `Get`, `List`, `Delete` | `POST/GET/DELETE /v1/skills?beta=true` |
 | `beta_skill_versions` | `client.Beta.Skills.Versions.New`, `Get`, `List` | `POST/GET /v1/skills/{id}/versions?beta=true` |
 | `beta_skill_version_download` | `client.Beta.Skills.Versions.Download` | `GET /v1/skills/{id}/versions/{version}/content?beta=true` |
+| `beta_models` | `client.Beta.Models.List` | `GET /v1/models?beta=true` |
+| `beta_models_get` | `client.Beta.Models.Get` | `GET /v1/models/{id}?beta=true` |
+| `beta_messages` | `client.Beta.Messages.New` | `POST /v1/messages?beta=true` |
+| `beta_messages_stream` | `client.Beta.Messages.NewStreaming` | `POST /v1/messages?beta=true` (stream) |
+| `beta_message_batches_create` | `client.Beta.Messages.Batches.New` | `POST /v1/messages/batches?beta=true` |
+| `messages_code_execution` | `client.Messages.New` (server `code_execution` tool) | `POST /v1/messages` |
 | `error_responses` | `client.Messages.New` (invalid model) | `POST /v1/messages` |
 
 ## Suite-specific model configuration
@@ -51,6 +57,11 @@ Most suites reuse `ANTHROPIC_MODEL`. The following variables are only required f
 |----------|-------------|---------|-------|
 | `ANTHROPIC_VISION_MODEL` | `messages_vision`, `messages_document` | same as `ANTHROPIC_MODEL` | Vision/document-capable model |
 | `ANTHROPIC_COMPLETION_MODEL` | `completions`, `completions_stream` | `claude-2.1` when selected | Legacy text completions |
+
+### Notes
+
+- **`messages_code_execution`** requires a model/endpoint that supports the server `code_execution` tool. Live providers may refuse; the suite treats `stop_reason: refusal` as a pass. Included in the `full` preset only.
+- **Beta twins** (`beta_models*`, `beta_messages*`, `beta_message_batches_create`) exercise the beta SDK client paths (`?beta=true` / beta headers). They are included in `full` only.
 
 ## Examples
 

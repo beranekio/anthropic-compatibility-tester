@@ -154,6 +154,15 @@ func (s *Server) handleMessages(w http.ResponseWriter, r *http.Request) {
 
 func writeMessageResponse(w http.ResponseWriter, req *messageRequest) {
 	if len(req.Tools) > 0 && !messageRequestHasToolResult(req.Messages) {
+		if messageRequestHasCodeExecutionTool(req.Tools) {
+			writeJSON(w, mockMessagePayload("", "tool_use", []map[string]any{{
+				"type":  "server_tool_use",
+				"id":    "srvtoolu_mock_1",
+				"name":  "code_execution",
+				"input": map[string]any{"code": "print(1+1)"},
+			}}))
+			return
+		}
 		writeJSON(w, mockMessagePayload("", "tool_use", []map[string]any{{
 			"type":  "tool_use",
 			"id":    "toolu_mock_1",
@@ -204,17 +213,32 @@ func writeMessageStream(w http.ResponseWriter, req *messageRequest) {
 	}
 
 	if len(req.Tools) > 0 && !messageRequestHasToolResult(req.Messages) {
-		events = []map[string]any{
-			{"type": "message_start", "message": startMessage},
-			{"type": "content_block_start", "index": 0, "content_block": map[string]any{
-				"type": "tool_use", "id": "toolu_mock_1", "name": "get_weather", "input": map[string]any{},
-			}},
-			{"type": "content_block_delta", "index": 0, "delta": map[string]any{
-				"type": "input_json_delta", "partial_json": `{"location":"San Francisco, CA"}`,
-			}},
-			{"type": "content_block_stop", "index": 0},
-			{"type": "message_delta", "delta": map[string]any{"stop_reason": "tool_use", "stop_sequence": nil}},
-			{"type": "message_stop"},
+		if messageRequestHasCodeExecutionTool(req.Tools) {
+			events = []map[string]any{
+				{"type": "message_start", "message": startMessage},
+				{"type": "content_block_start", "index": 0, "content_block": map[string]any{
+					"type": "server_tool_use", "id": "srvtoolu_mock_1", "name": "code_execution", "input": map[string]any{},
+				}},
+				{"type": "content_block_delta", "index": 0, "delta": map[string]any{
+					"type": "input_json_delta", "partial_json": `{"code":"print(1+1)"}`,
+				}},
+				{"type": "content_block_stop", "index": 0},
+				{"type": "message_delta", "delta": map[string]any{"stop_reason": "tool_use", "stop_sequence": nil}},
+				{"type": "message_stop"},
+			}
+		} else {
+			events = []map[string]any{
+				{"type": "message_start", "message": startMessage},
+				{"type": "content_block_start", "index": 0, "content_block": map[string]any{
+					"type": "tool_use", "id": "toolu_mock_1", "name": "get_weather", "input": map[string]any{},
+				}},
+				{"type": "content_block_delta", "index": 0, "delta": map[string]any{
+					"type": "input_json_delta", "partial_json": `{"location":"San Francisco, CA"}`,
+				}},
+				{"type": "content_block_stop", "index": 0},
+				{"type": "message_delta", "delta": map[string]any{"stop_reason": "tool_use", "stop_sequence": nil}},
+				{"type": "message_stop"},
+			}
 		}
 	}
 
@@ -267,6 +291,22 @@ func messageRequestHasDocument(messages []messageInput) bool {
 					return true
 				}
 			}
+		}
+	}
+	return false
+}
+
+func messageRequestHasCodeExecutionTool(tools []json.RawMessage) bool {
+	for _, raw := range tools {
+		var tool map[string]any
+		if err := json.Unmarshal(raw, &tool); err != nil {
+			continue
+		}
+		if typ, _ := tool["type"].(string); strings.Contains(typ, "code_execution") {
+			return true
+		}
+		if name, _ := tool["name"].(string); name == "code_execution" {
+			return true
 		}
 	}
 	return false

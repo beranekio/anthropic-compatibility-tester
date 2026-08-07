@@ -90,6 +90,12 @@ var FullSuites = []string{
 	"beta_skills",
 	"beta_skill_versions",
 	"beta_skill_version_download",
+	"beta_models",
+	"beta_models_get",
+	"beta_messages",
+	"beta_messages_stream",
+	"beta_message_batches_create",
+	"messages_code_execution",
 	"error_responses",
 }
 
@@ -246,7 +252,7 @@ func validateModelsForSuites(cfg *Config) error {
 	var needsChat, needsCompletion, needsVision bool
 	for _, name := range cfg.Suites {
 		switch name {
-		case "messages", "messages_stream", "messages_tools", "messages_tools_stream", "messages_json", "messages_multi_turn", "messages_count_tokens", "messages_thinking", "messages_prompt_cache", "models_get", "message_batches_create", "message_batches_get", "message_batches_cancel", "message_batches_list", "message_batches_results", "message_batches_delete":
+		case "messages", "messages_stream", "messages_tools", "messages_tools_stream", "messages_json", "messages_multi_turn", "messages_count_tokens", "messages_thinking", "messages_prompt_cache", "messages_code_execution", "models_get", "message_batches_create", "message_batches_get", "message_batches_cancel", "message_batches_list", "message_batches_results", "message_batches_delete", "beta_models_get", "beta_messages", "beta_messages_stream", "beta_message_batches_create":
 			needsChat = true
 		case "completions", "completions_stream":
 			needsCompletion = true

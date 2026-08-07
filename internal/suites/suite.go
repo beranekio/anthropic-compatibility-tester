@@ -57,6 +57,12 @@ func All() []Suite {
 		BetaSkills{},
 		BetaSkillVersions{},
 		BetaSkillVersionDownload{},
+		BetaModels{},
+		BetaModelsGet{},
+		BetaMessages{},
+		BetaMessagesStream{},
+		BetaMessageBatchesCreate{},
+		MessagesCodeExecution{},
 		ErrorResponses{},
 	}
 }

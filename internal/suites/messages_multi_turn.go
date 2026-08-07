@@ -10,9 +10,9 @@ import (
 )
 
 const (
-	multiTurnToolUseID        = "toolu_mock_weather"
-	multiTurnToolResultJSON   = `{"temperature": 72, "unit": "fahrenheit", "condition": "sunny"}`
-	multiTurnExpectedTempF    = "72"
+	multiTurnToolUseID      = "toolu_mock_weather"
+	multiTurnToolResultJSON = `{"temperature": 72, "unit": "fahrenheit", "condition": "sunny"}`
+	multiTurnExpectedTempF  = "72"
 )
 
 // MessagesMultiTurn verifies multi-turn POST /v1/messages with tool results.

@@ -88,6 +88,42 @@ func SmallTextFileBytes() []byte {
 	return []byte(smallTextFileContent)
 }
 
+// minimalPDF is a tiny PDF used for document/PDF message suites.
+// It is intentionally small and only needs to be valid enough for SDK transport.
+const minimalPDF = `%PDF-1.1
+%âãÏÓ
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R >>
+endobj
+2 0 obj
+<< /Type /Pages /Kids [3 0 R] /Count 1 >>
+endobj
+3 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 200 200] >>
+endobj
+xref
+0 4
+0000000000 65535 f 
+0000000015 00000 n 
+0000000074 00000 n 
+0000000133 00000 n 
+trailer
+<< /Size 4 /Root 1 0 R >>
+startxref
+210
+%%EOF
+`
+
+// MinimalPDFBytes returns a small PDF fixture for document content blocks.
+func MinimalPDFBytes() []byte {
+	return []byte(minimalPDF)
+}
+
+// SkillVersionDownloadBytes is canned content returned by the mock skill version download.
+func SkillVersionDownloadBytes() []byte {
+	return []byte("PK\x03\x04mock-skill-version-content")
+}
+
 type namedSkillFileReader struct {
 	r        *bytes.Reader
 	filename string

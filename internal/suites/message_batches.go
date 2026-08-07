@@ -363,3 +363,164 @@ func (MessageBatchesList) Run(ctx context.Context, client anthropic.Client, cfg 
 	}
 	return nil
 }
+
+// MessageBatchesResults verifies GET /v1/messages/batches/{id}/results (JSONL stream).
+type MessageBatchesResults struct{}
+
+func (MessageBatchesResults) Name() string { return "message_batches_results" }
+func (MessageBatchesResults) Description() string {
+	return "Message batch results stream (GET /v1/messages/batches/{id}/results)"
+}
+
+func (MessageBatchesResults) Run(ctx context.Context, client anthropic.Client, cfg *config.Config) error {
+	const customID = "batch-request-1"
+	var batchID string
+	defer func() { cleanupMessageBatch(client, batchID) }()
+
+	created, err := client.Messages.Batches.New(ctx, anthropic.MessageBatchNewParams{
+		Requests: []anthropic.MessageBatchNewParamsRequest{{
+			CustomID: customID,
+			Params: anthropic.MessageBatchNewParamsRequestParams{
+				Model:     anthropic.Model(cfg.Model),
+				MaxTokens: 64,
+				Messages: []anthropic.MessageParam{
+					anthropic.NewUserMessage(anthropic.NewTextBlock("Reply with exactly the word: pong")),
+				},
+			},
+		}},
+	})
+	if err != nil {
+		return fmt.Errorf("message batch create failed: %w", err)
+	}
+	if err := validateMessageBatchObject("message_batches_results", created); err != nil {
+		return err
+	}
+	batchID = created.ID
+
+	// Results are only available after processing ends.
+	if created.ProcessingStatus != anthropic.MessageBatchProcessingStatusEnded {
+		skipCancel, err := waitForMessageBatchCancelable(ctx, client, "message_batches_results", batchID)
+		if err != nil {
+			return err
+		}
+		if !skipCancel {
+			if _, err := client.Messages.Batches.Cancel(ctx, batchID); err != nil {
+				var apiErr *anthropic.Error
+				if !errors.As(err, &apiErr) || !isMessageBatchCancelAlreadyTerminalError(apiErr) {
+					return fmt.Errorf("message batch cancel failed: %w", err)
+				}
+			}
+		}
+		if _, err := waitForMessageBatchStatus(ctx, client, "message_batches_results", batchID, func(status anthropic.MessageBatchProcessingStatus) bool {
+			return status == anthropic.MessageBatchProcessingStatusEnded
+		}); err != nil {
+			return err
+		}
+	}
+
+	stream := client.Messages.Batches.ResultsStreaming(ctx, batchID)
+	defer stream.Close()
+
+	count := 0
+	foundCustomID := false
+	for stream.Next() {
+		item := stream.Current()
+		count++
+		if item.CustomID == "" {
+			return fail("message_batches_results", "result line missing custom_id")
+		}
+		if item.CustomID == customID {
+			foundCustomID = true
+		}
+		if item.Result.Type == "" {
+			return fail("message_batches_results", "result line missing result.type")
+		}
+	}
+	if err := stream.Err(); err != nil {
+		return fmt.Errorf("message batch results stream failed: %w", err)
+	}
+	if count == 0 {
+		return fail("message_batches_results", "results stream returned no lines")
+	}
+	if !foundCustomID {
+		return fail("message_batches_results", fmt.Sprintf("no result line with custom_id %q", customID))
+	}
+	return nil
+}
+
+// MessageBatchesDelete verifies DELETE /v1/messages/batches/{id}.
+type MessageBatchesDelete struct{}
+
+func (MessageBatchesDelete) Name() string { return "message_batches_delete" }
+func (MessageBatchesDelete) Description() string {
+	return "Message batch delete (DELETE /v1/messages/batches/{id})"
+}
+
+func (MessageBatchesDelete) Run(ctx context.Context, client anthropic.Client, cfg *config.Config) error {
+	var batchID string
+	// On success we delete in the suite; defer is a best-effort cleanup if we fail mid-way.
+	defer func() {
+		if batchID != "" {
+			cleanupMessageBatch(client, batchID)
+		}
+	}()
+
+	created, err := client.Messages.Batches.New(ctx, anthropic.MessageBatchNewParams{
+		Requests: []anthropic.MessageBatchNewParamsRequest{{
+			CustomID: "batch-request-1",
+			Params: anthropic.MessageBatchNewParamsRequestParams{
+				Model:     anthropic.Model(cfg.Model),
+				MaxTokens: 64,
+				Messages: []anthropic.MessageParam{
+					anthropic.NewUserMessage(anthropic.NewTextBlock("Reply with exactly the word: pong")),
+				},
+			},
+		}},
+	})
+	if err != nil {
+		return fmt.Errorf("message batch create failed: %w", err)
+	}
+	if err := validateMessageBatchObject("message_batches_delete", created); err != nil {
+		return err
+	}
+	batchID = created.ID
+
+	if created.ProcessingStatus != anthropic.MessageBatchProcessingStatusEnded {
+		skipCancel, err := waitForMessageBatchCancelable(ctx, client, "message_batches_delete", batchID)
+		if err != nil {
+			return err
+		}
+		if !skipCancel {
+			if _, err := client.Messages.Batches.Cancel(ctx, batchID); err != nil {
+				var apiErr *anthropic.Error
+				if !errors.As(err, &apiErr) || !isMessageBatchCancelAlreadyTerminalError(apiErr) {
+					return fmt.Errorf("message batch cancel failed: %w", err)
+				}
+			}
+		}
+		if _, err := waitForMessageBatchStatus(ctx, client, "message_batches_delete", batchID, func(status anthropic.MessageBatchProcessingStatus) bool {
+			return status == anthropic.MessageBatchProcessingStatusEnded
+		}); err != nil {
+			return err
+		}
+	}
+
+	deleted, err := client.Messages.Batches.Delete(ctx, batchID)
+	if err != nil {
+		return fmt.Errorf("message batch delete failed: %w", err)
+	}
+	if deleted == nil {
+		return fail("message_batches_delete", "delete response is nil")
+	}
+	if deleted.ID == "" {
+		return fail("message_batches_delete", "delete response missing id")
+	}
+	if deleted.ID != batchID {
+		return fail("message_batches_delete", fmt.Sprintf("delete id is %q, want %q", deleted.ID, batchID))
+	}
+	if string(deleted.Type) != "message_batch_deleted" {
+		return fail("message_batches_delete", fmt.Sprintf("delete type is %q, want message_batch_deleted", deleted.Type))
+	}
+	batchID = "" // successful delete; skip cleanup
+	return nil
+}

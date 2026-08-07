@@ -3,6 +3,7 @@ package testutil
 import (
 	"bytes"
 	_ "embed"
+	"fmt"
 	"io"
 )
 
@@ -88,35 +89,33 @@ func SmallTextFileBytes() []byte {
 	return []byte(smallTextFileContent)
 }
 
-// minimalPDF is a tiny PDF used for document/PDF message suites.
-// It is intentionally small and only needs to be valid enough for SDK transport.
-const minimalPDF = `%PDF-1.1
-%âãÏÓ
-1 0 obj
-<< /Type /Catalog /Pages 2 0 R >>
-endobj
-2 0 obj
-<< /Type /Pages /Kids [3 0 R] /Count 1 >>
-endobj
-3 0 obj
-<< /Type /Page /Parent 2 0 R /MediaBox [0 0 200 200] >>
-endobj
-xref
-0 4
-0000000000 65535 f 
-0000000015 00000 n 
-0000000074 00000 n 
-0000000133 00000 n 
-trailer
-<< /Size 4 /Root 1 0 R >>
-startxref
-210
-%%EOF
-`
-
 // MinimalPDFBytes returns a small PDF fixture for document content blocks.
+// Built as raw bytes (not a UTF-8 string) so the PDF binary comment and xref
+// offsets stay consistent for real parsers.
 func MinimalPDFBytes() []byte {
-	return []byte(minimalPDF)
+	var b bytes.Buffer
+	// Header + binary comment (four high bytes; must not go through UTF-8 runes).
+	b.WriteString("%PDF-1.1\n%")
+	b.Write([]byte{0xe2, 0xe3, 0xcf, 0xd3})
+	b.WriteByte('\n')
+
+	offsets := make([]int, 4)
+	writeObj := func(n int, body string) {
+		offsets[n] = b.Len()
+		fmt.Fprintf(&b, "%d 0 obj\n%s\nendobj\n", n, body)
+	}
+	writeObj(1, "<< /Type /Catalog /Pages 2 0 R >>")
+	writeObj(2, "<< /Type /Pages /Kids [3 0 R] /Count 1 >>")
+	writeObj(3, "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 200 200] >>")
+
+	xrefPos := b.Len()
+	fmt.Fprintf(&b, "xref\n0 4\n")
+	fmt.Fprintf(&b, "0000000000 65535 f \n")
+	for i := 1; i <= 3; i++ {
+		fmt.Fprintf(&b, "%010d 00000 n \n", offsets[i])
+	}
+	fmt.Fprintf(&b, "trailer\n<< /Size 4 /Root 1 0 R >>\nstartxref\n%d\n%%%%EOF\n", xrefPos)
+	return b.Bytes()
 }
 
 // SkillVersionDownloadBytes is canned content returned by the mock skill version download.

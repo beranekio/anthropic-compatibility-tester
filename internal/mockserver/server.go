@@ -7,6 +7,8 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+
+	"github.com/beranekio/anthropic-compatibility-tester/internal/testutil"
 )
 
 // Server provides a minimal Anthropic-compatible HTTP API for CI tests.
@@ -534,7 +536,7 @@ func (s *Server) handleBetaSkillVersionDownload(w http.ResponseWriter, r *http.R
 	// Canned binary payload; real API returns a zip of the skill bundle.
 	w.Header().Set("Content-Type", "application/zip")
 	w.WriteHeader(http.StatusOK)
-	_, _ = w.Write([]byte("PK\x03\x04mock-skill-version-content"))
+	_, _ = w.Write(testutil.SkillVersionDownloadBytes())
 }
 
 // multipartHasUploadedFiles reports whether the request includes at least one

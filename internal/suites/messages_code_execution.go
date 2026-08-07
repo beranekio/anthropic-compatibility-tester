@@ -26,6 +26,8 @@ func (MessagesCodeExecution) Run(ctx context.Context, client anthropic.Client, c
 		Tools: []anthropic.ToolUnionParam{{
 			OfCodeExecutionTool20250522: &anthropic.CodeExecutionTool20250522Param{},
 		}},
+		// Force a tool path; auto tool_choice can answer with plain text and never invoke.
+		ToolChoice: requiredToolChoice(),
 	})
 	if err != nil {
 		return fmt.Errorf("messages code execution request failed: %w", err)

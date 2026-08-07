@@ -38,6 +38,11 @@ func (BetaMessagesStream) Run(ctx context.Context, client anthropic.Client, cfg 
 
 	events := 0
 	var hasMessageStart bool
+	// Match messages_stream: track the open content block so text deltas cannot
+	// borrow start/stop lifecycle events from a different block.
+	var inContentBlock bool
+	var textInOpenBlock bool
+	var completedTextBlock bool
 	var hasOutput bool
 	var finished bool
 	var stopReason string
@@ -47,11 +52,30 @@ func (BetaMessagesStream) Run(ctx context.Context, client anthropic.Client, cfg 
 		switch event.Type {
 		case "message_start":
 			hasMessageStart = true
+		case "content_block_start":
+			if inContentBlock {
+				return fail("beta_messages_stream", "content_block_start while a content block is already open")
+			}
+			inContentBlock = true
+			textInOpenBlock = false
 		case "content_block_delta":
+			if !inContentBlock {
+				return fail("beta_messages_stream", "content_block_delta without an open content_block_start")
+			}
 			delta := event.AsContentBlockDelta().Delta
 			if delta.Text != "" {
 				hasOutput = true
+				textInOpenBlock = true
 			}
+		case "content_block_stop":
+			if !inContentBlock {
+				return fail("beta_messages_stream", "content_block_stop without an open content_block_start")
+			}
+			if textInOpenBlock {
+				completedTextBlock = true
+			}
+			inContentBlock = false
+			textInOpenBlock = false
 		case "message_stop":
 			finished = true
 		case "message_delta":
@@ -78,8 +102,17 @@ func (BetaMessagesStream) Run(ctx context.Context, client anthropic.Client, cfg 
 	if stopReason == "refusal" {
 		return nil
 	}
+	if stopReason == "tool_use" {
+		return fail("beta_messages_stream", "stop_reason is tool_use on text-only stream")
+	}
+	if inContentBlock {
+		return fail("beta_messages_stream", "stream ended with an open content block (missing content_block_stop)")
+	}
 	if !hasOutput {
 		return fail("beta_messages_stream", "stream produced no text content")
+	}
+	if !completedTextBlock {
+		return fail("beta_messages_stream", "stream text deltas missing content_block start/stop lifecycle on the same block")
 	}
 	return nil
 }

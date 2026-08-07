@@ -7,6 +7,8 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+
+	"github.com/beranekio/anthropic-compatibility-tester/internal/testutil"
 )
 
 // Server provides a minimal Anthropic-compatible HTTP API for CI tests.
@@ -54,6 +56,7 @@ func newServerWithRoutes() *Server {
 	mux.HandleFunc("GET /v1/messages/batches/{id}", s.handleMessageBatchGet)
 	mux.HandleFunc("POST /v1/messages/batches/{id}/cancel", s.handleMessageBatchCancel)
 	mux.HandleFunc("DELETE /v1/messages/batches/{id}", s.handleMessageBatchDelete)
+	mux.HandleFunc("GET /v1/messages/batches/{id}/results", s.handleMessageBatchResults)
 	mux.HandleFunc("POST /v1/files", s.handleBetaFileUpload)
 	mux.HandleFunc("GET /v1/files", s.handleBetaFileList)
 	mux.HandleFunc("GET /v1/files/{id}", s.handleBetaFileGet)
@@ -67,6 +70,7 @@ func newServerWithRoutes() *Server {
 	mux.HandleFunc("GET /v1/skills/{id}/versions", s.handleBetaSkillVersionList)
 	mux.HandleFunc("GET /v1/skills/{id}/versions/{version}", s.handleBetaSkillVersionGet)
 	mux.HandleFunc("DELETE /v1/skills/{id}/versions/{version}", s.handleBetaSkillVersionDelete)
+	mux.HandleFunc("GET /v1/skills/{id}/versions/{version}/content", s.handleBetaSkillVersionDownload)
 
 	return s
 }
@@ -102,10 +106,14 @@ func handleCountTokens(w http.ResponseWriter, _ *http.Request) {
 }
 
 type messageRequest struct {
-	Model        string            `json:"model"`
-	Stream       bool              `json:"stream"`
-	Messages     []messageInput    `json:"messages"`
-	Tools        []json.RawMessage `json:"tools"`
+	Model    string            `json:"model"`
+	Stream   bool              `json:"stream"`
+	Messages []messageInput    `json:"messages"`
+	Tools    []json.RawMessage `json:"tools"`
+	Thinking *struct {
+		Type         string `json:"type"`
+		BudgetTokens int64  `json:"budget_tokens"`
+	} `json:"thinking"`
 	OutputConfig *struct {
 		Format *struct {
 			Type string `json:"type"`
@@ -155,6 +163,14 @@ func writeMessageResponse(w http.ResponseWriter, req *messageRequest) {
 		return
 	}
 
+	if req.Thinking != nil && (req.Thinking.Type == "enabled" || req.Thinking.Type == "adaptive") {
+		writeJSON(w, mockMessagePayload("pong", "end_turn", []map[string]any{
+			{"type": "thinking", "thinking": "mock internal reasoning", "signature": "sig_mock_1"},
+			{"type": "text", "text": "pong"},
+		}))
+		return
+	}
+
 	text := "pong"
 	if messageRequestHasToolResult(req.Messages) {
 		text = "72"
@@ -162,6 +178,8 @@ func writeMessageResponse(w http.ResponseWriter, req *messageRequest) {
 		text = `{"answer":"pong"}`
 	} else if messageRequestHasImage(req.Messages) {
 		text = "I see an image"
+	} else if messageRequestHasDocument(req.Messages) {
+		text = "I see a document"
 	}
 
 	writeJSON(w, mockMessagePayload(text, "end_turn", nil))
@@ -230,6 +248,22 @@ func messageRequestHasImage(messages []messageInput) bool {
 				var blockType string
 				_ = json.Unmarshal(block["type"], &blockType)
 				if blockType == "image" {
+					return true
+				}
+			}
+		}
+	}
+	return false
+}
+
+func messageRequestHasDocument(messages []messageInput) bool {
+	for _, msg := range messages {
+		var blocks []map[string]json.RawMessage
+		if err := json.Unmarshal(msg.Content, &blocks); err == nil {
+			for _, block := range blocks {
+				var blockType string
+				_ = json.Unmarshal(block["type"], &blockType)
+				if blockType == "document" {
 					return true
 				}
 			}
@@ -320,6 +354,32 @@ func (s *Server) handleMessageBatchDelete(w http.ResponseWriter, r *http.Request
 		return
 	}
 	writeJSON(w, map[string]any{"id": id, "type": "message_batch_deleted"})
+}
+
+func (s *Server) handleMessageBatchResults(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	payload, ok := s.batchStore.get(id)
+	if !ok {
+		writeError(w, http.StatusNotFound, "batch not found", "not_found_error")
+		return
+	}
+	status, _ := payload["processing_status"].(string)
+	if status != "ended" {
+		writeError(w, http.StatusBadRequest, "batch results are only available after processing ends", "invalid_request_error")
+		return
+	}
+	// JSONL individual result; custom_id matches the suites' create helpers.
+	line, _ := json.Marshal(map[string]any{
+		"custom_id": "batch-request-1",
+		"result": map[string]any{
+			"type":    "succeeded",
+			"message": mockMessagePayload("pong", "end_turn", nil),
+		},
+	})
+	w.Header().Set("Content-Type", "application/x-jsonl")
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write(line)
+	_, _ = w.Write([]byte("\n"))
 }
 
 func (s *Server) handleBetaFileUpload(w http.ResponseWriter, r *http.Request) {
@@ -464,6 +524,19 @@ func (s *Server) handleBetaSkillVersionDelete(w http.ResponseWriter, r *http.Req
 		return
 	}
 	writeJSON(w, map[string]any{"id": version, "type": "skill_version_deleted"})
+}
+
+func (s *Server) handleBetaSkillVersionDownload(w http.ResponseWriter, r *http.Request) {
+	skillID := r.PathValue("id")
+	version := r.PathValue("version")
+	if _, ok := s.skillStore.getVersion(skillID, version); !ok {
+		writeError(w, http.StatusNotFound, "skill version not found", "not_found_error")
+		return
+	}
+	// Canned binary payload; real API returns a zip of the skill bundle.
+	w.Header().Set("Content-Type", "application/zip")
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write(testutil.SkillVersionDownloadBytes())
 }
 
 // multipartHasUploadedFiles reports whether the request includes at least one

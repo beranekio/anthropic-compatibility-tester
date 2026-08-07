@@ -48,9 +48,15 @@ func All() []Suite {
 		MessageBatchesGet{},
 		MessageBatchesCancel{},
 		MessageBatchesList{},
+		MessageBatchesResults{},
+		MessageBatchesDelete{},
+		MessagesThinking{},
+		MessagesPromptCache{},
+		MessagesDocument{},
 		BetaFiles{},
 		BetaSkills{},
 		BetaSkillVersions{},
+		BetaSkillVersionDownload{},
 		ErrorResponses{},
 	}
 }

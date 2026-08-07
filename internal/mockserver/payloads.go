@@ -17,10 +17,10 @@ func mockModelCapabilities() map[string]any {
 		"pdf_input":          capabilitySupport(true),
 		"structured_outputs": capabilitySupport(true),
 		"context_management": map[string]any{
-			"supported":                 true,
-			"clear_thinking_20251015":   capabilitySupport(true),
-			"clear_tool_uses_20250919":  capabilitySupport(true),
-			"compact_20260112":          capabilitySupport(true),
+			"supported":                true,
+			"clear_thinking_20251015":  capabilitySupport(true),
+			"clear_tool_uses_20250919": capabilitySupport(true),
+			"compact_20260112":         capabilitySupport(true),
 		},
 		"effort": map[string]any{
 			"supported": true,
@@ -134,11 +134,11 @@ func mockMessageBatchPayload(id, status string) map[string]any {
 
 func mockCompletionPayload(text string) map[string]any {
 	return map[string]any{
-		"id":           "cmpl_mock_1",
-		"type":         "completion",
-		"model":        defaultModelID,
-		"completion":   text,
-		"stop_reason":  "stop_sequence",
+		"id":          "cmpl_mock_1",
+		"type":        "completion",
+		"model":       defaultModelID,
+		"completion":  text,
+		"stop_reason": "stop_sequence",
 	}
 }
 

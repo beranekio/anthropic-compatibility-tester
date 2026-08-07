@@ -7,7 +7,7 @@ Every suite calls a real method on the [official Anthropic Go SDK](https://githu
 | Preset | `TEST_SUITES` value | Scope |
 |--------|----------------------|-------|
 | Default | `all` or `default` | `models`, `models_get`, `messages`, `messages_stream` |
-| Extended | `extended` | default plus tools, JSON, multi-turn, token counting, vision, legacy completions, message batches, beta files, and `error_responses` |
+| Extended | `extended` | default plus tools, JSON, multi-turn, token counting, vision, thinking, prompt cache, documents, legacy completions, message batches (including results/delete), beta files, and `error_responses` |
 | Full | `full` | every registered suite, including deprecated completions and beta skills |
 
 Deprecated legacy completions suites (`completions`, `completions_stream`) are **opt-in** — included in `extended` and `full`, but not in `default`. They are labeled `(deprecated)` in `--list-suites`.
@@ -26,15 +26,21 @@ Deprecated legacy completions suites (`completions`, `completions_stream`) are *
 | `messages_multi_turn` | `client.Messages.New` (multi-turn history with tool results) | `POST /v1/messages` |
 | `messages_count_tokens` | `client.Messages.CountTokens` | `POST /v1/messages/count_tokens` |
 | `messages_vision` | `client.Messages.New` (with image input) | `POST /v1/messages` |
+| `messages_thinking` | `client.Messages.New` (`thinking` enabled) | `POST /v1/messages` |
+| `messages_prompt_cache` | `client.Messages.New` (`cache_control` on system text) | `POST /v1/messages` |
+| `messages_document` | `client.Messages.New` (PDF document block) | `POST /v1/messages` |
 | `(deprecated) completions` | `client.Completions.New` | `POST /v1/complete` |
 | `(deprecated) completions_stream` | `client.Completions.NewStreaming` | `POST /v1/complete` (stream) |
 | `message_batches_create` | `client.Messages.Batches.New` | `POST /v1/messages/batches` |
 | `message_batches_get` | `client.Messages.Batches.Get` | `GET /v1/messages/batches/{id}` |
 | `message_batches_cancel` | `client.Messages.Batches.Cancel` | `POST /v1/messages/batches/{id}/cancel` |
 | `message_batches_list` | `client.Messages.Batches.List` | `GET /v1/messages/batches` |
+| `message_batches_results` | `client.Messages.Batches.ResultsStreaming` | `GET /v1/messages/batches/{id}/results` |
+| `message_batches_delete` | `client.Messages.Batches.Delete` | `DELETE /v1/messages/batches/{id}` |
 | `beta_files` | `client.Beta.Files.Upload`, `List`, `GetMetadata`, `Download`, `Delete` | `POST/GET/DELETE /v1/files?beta=true`, `GET /v1/files/{id}/content?beta=true` |
 | `beta_skills` | `client.Beta.Skills.New`, `Get`, `List`, `Delete` | `POST/GET/DELETE /v1/skills?beta=true` |
 | `beta_skill_versions` | `client.Beta.Skills.Versions.New`, `Get`, `List` | `POST/GET /v1/skills/{id}/versions?beta=true` |
+| `beta_skill_version_download` | `client.Beta.Skills.Versions.Download` | `GET /v1/skills/{id}/versions/{version}/content?beta=true` |
 | `error_responses` | `client.Messages.New` (invalid model) | `POST /v1/messages` |
 
 ## Suite-specific model configuration
@@ -43,7 +49,7 @@ Most suites reuse `ANTHROPIC_MODEL`. The following variables are only required f
 
 | Variable | Required by | Default | Notes |
 |----------|-------------|---------|-------|
-| `ANTHROPIC_VISION_MODEL` | `messages_vision` | same as `ANTHROPIC_MODEL` | Vision-capable model |
+| `ANTHROPIC_VISION_MODEL` | `messages_vision`, `messages_document` | same as `ANTHROPIC_MODEL` | Vision/document-capable model |
 | `ANTHROPIC_COMPLETION_MODEL` | `completions`, `completions_stream` | `claude-2.1` when selected | Legacy text completions |
 
 ## Examples

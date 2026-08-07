@@ -54,6 +54,11 @@ var ExtendedSuites = []string{
 	"message_batches_get",
 	"message_batches_cancel",
 	"message_batches_list",
+	"message_batches_results",
+	"message_batches_delete",
+	"messages_thinking",
+	"messages_prompt_cache",
+	"messages_document",
 	"beta_files",
 	"error_responses",
 }
@@ -70,15 +75,21 @@ var FullSuites = []string{
 	"messages_multi_turn",
 	"messages_count_tokens",
 	"messages_vision",
+	"messages_thinking",
+	"messages_prompt_cache",
+	"messages_document",
 	"completions",
 	"completions_stream",
 	"message_batches_create",
 	"message_batches_get",
 	"message_batches_cancel",
 	"message_batches_list",
+	"message_batches_results",
+	"message_batches_delete",
 	"beta_files",
 	"beta_skills",
 	"beta_skill_versions",
+	"beta_skill_version_download",
 	"error_responses",
 }
 
@@ -235,11 +246,11 @@ func validateModelsForSuites(cfg *Config) error {
 	var needsChat, needsCompletion, needsVision bool
 	for _, name := range cfg.Suites {
 		switch name {
-		case "messages", "messages_stream", "messages_tools", "messages_tools_stream", "messages_json", "messages_multi_turn", "messages_count_tokens", "models_get", "message_batches_create", "message_batches_get", "message_batches_cancel", "message_batches_list":
+		case "messages", "messages_stream", "messages_tools", "messages_tools_stream", "messages_json", "messages_multi_turn", "messages_count_tokens", "messages_thinking", "messages_prompt_cache", "models_get", "message_batches_create", "message_batches_get", "message_batches_cancel", "message_batches_list", "message_batches_results", "message_batches_delete":
 			needsChat = true
 		case "completions", "completions_stream":
 			needsCompletion = true
-		case "messages_vision":
+		case "messages_vision", "messages_document":
 			needsVision = true
 		}
 	}

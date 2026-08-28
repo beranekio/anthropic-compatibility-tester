@@ -37,7 +37,7 @@ func (BetaFiles) Run(ctx context.Context, client anthropic.Client, _ *config.Con
 	if err != nil {
 		return fmt.Errorf("beta file upload failed: %w", err)
 	}
-	if err := validateFileMetadata("beta_files", uploaded); err != nil {
+	if err := validateBetaFileMetadata("beta_files", uploaded); err != nil {
 		return err
 	}
 	fileID = uploaded.ID
@@ -53,7 +53,7 @@ func (BetaFiles) Run(ctx context.Context, client anthropic.Client, _ *config.Con
 	for i := range listPage.Data {
 		item := &listPage.Data[i]
 		if item.ID == fileID {
-			if err := validateFileMetadata("beta_files", item); err != nil {
+			if err := validateBetaFileMetadata("beta_files", item); err != nil {
 				return err
 			}
 			found = true
@@ -68,7 +68,7 @@ func (BetaFiles) Run(ctx context.Context, client anthropic.Client, _ *config.Con
 	if err != nil {
 		return fmt.Errorf("beta file get metadata failed: %w", err)
 	}
-	if err := validateFileMetadata("beta_files", got); err != nil {
+	if err := validateBetaFileMetadata("beta_files", got); err != nil {
 		return err
 	}
 	if got.ID != fileID {
@@ -92,14 +92,14 @@ func (BetaFiles) Run(ctx context.Context, client anthropic.Client, _ *config.Con
 	if err != nil {
 		return fmt.Errorf("beta file delete failed: %w", err)
 	}
-	if err := validateDeletedFile("beta_files", deletedResp, fileID); err != nil {
+	if err := validateBetaDeletedFile("beta_files", deletedResp, fileID); err != nil {
 		return err
 	}
 	deleted = true
 	return nil
 }
 
-func validateDeletedFile(suite string, deleted *anthropic.DeletedFile, wantID string) error {
+func validateBetaDeletedFile(suite string, deleted *anthropic.BetaDeletedFile, wantID string) error {
 	if deleted == nil {
 		return fail(suite, "delete response is nil")
 	}
@@ -109,13 +109,13 @@ func validateDeletedFile(suite string, deleted *anthropic.DeletedFile, wantID st
 	if deleted.ID != wantID {
 		return fail(suite, fmt.Sprintf("delete id is %q, want %q", deleted.ID, wantID))
 	}
-	if deleted.Type != anthropic.DeletedFileTypeFileDeleted {
+	if deleted.Type != anthropic.BetaDeletedFileTypeFileDeleted {
 		return fail(suite, fmt.Sprintf("delete type is %q, want file_deleted", deleted.Type))
 	}
 	return nil
 }
 
-func validateFileMetadata(suite string, file *anthropic.FileMetadata) error {
+func validateBetaFileMetadata(suite string, file *anthropic.BetaFileMetadata) error {
 	if file == nil {
 		return fail(suite, "file metadata is nil")
 	}

@@ -31,8 +31,8 @@ func (BetaSkillVersions) Run(ctx context.Context, client anthropic.Client, _ *co
 	}()
 
 	created, err := client.Beta.Skills.New(ctx, anthropic.BetaSkillNewParams{
-		DisplayTitle: anthropic.String(uniqueSkillDisplayTitle()),
-		Files:        []io.Reader{testutil.SmallSkillFileReader()},
+		DisplayName: anthropic.String(uniqueSkillDisplayName()),
+		Files:       []io.Reader{testutil.SmallSkillFileReader()},
 	})
 	if err != nil {
 		return fmt.Errorf("beta skill create failed: %w", err)
@@ -52,13 +52,13 @@ func (BetaSkillVersions) Run(ctx context.Context, client anthropic.Client, _ *co
 		return err
 	}
 
-	got, err := client.Beta.Skills.Versions.Get(ctx, version.Version, anthropic.BetaSkillVersionGetParams{
+	got, err := client.Beta.Skills.Versions.Get(ctx, version.ID, anthropic.BetaSkillVersionGetParams{
 		SkillID: skillID,
 	})
 	if err != nil {
 		return fmt.Errorf("beta skill version get failed: %w", err)
 	}
-	if err := validateBetaSkillVersionGet("beta_skill_versions", got, skillID, version.Version); err != nil {
+	if err := validateBetaSkillVersionGet("beta_skill_versions", got, skillID, version.ID); err != nil {
 		return err
 	}
 
@@ -72,8 +72,8 @@ func (BetaSkillVersions) Run(ctx context.Context, client anthropic.Client, _ *co
 	found := false
 	for i := range page.Data {
 		item := &page.Data[i]
-		if item.Version == version.Version {
-			if err := validateBetaSkillVersionListItem("beta_skill_versions", item, skillID, version.Version); err != nil {
+		if item.ID == version.ID {
+			if err := validateBetaSkillVersionListItem("beta_skill_versions", item, skillID, version.ID); err != nil {
 				return err
 			}
 			found = true
@@ -86,7 +86,7 @@ func (BetaSkillVersions) Run(ctx context.Context, client anthropic.Client, _ *co
 	return nil
 }
 
-func validateBetaSkillVersionEnvelope(suite, id, typ, skillID, version string) error {
+func validateBetaSkillVersionEnvelope(suite, id, typ, skillID string) error {
 	if id == "" {
 		return fail(suite, "skill version missing id")
 	}
@@ -96,17 +96,14 @@ func validateBetaSkillVersionEnvelope(suite, id, typ, skillID, version string) e
 	if skillID == "" {
 		return fail(suite, "skill version missing skill_id")
 	}
-	if version == "" {
-		return fail(suite, "skill version missing version")
-	}
 	return nil
 }
 
-func validateBetaSkillVersionCreate(suite string, version *anthropic.BetaSkillVersionNewResponse, wantSkillID string) error {
+func validateBetaSkillVersionCreate(suite string, version *anthropic.BetaSkillVersion, wantSkillID string) error {
 	if version == nil {
 		return fail(suite, "version response is nil")
 	}
-	if err := validateBetaSkillVersionEnvelope(suite, version.ID, version.Type, version.SkillID, version.Version); err != nil {
+	if err := validateBetaSkillVersionEnvelope(suite, version.ID, string(version.Type), version.SkillID); err != nil {
 		return err
 	}
 	if version.SkillID != wantSkillID {
@@ -115,34 +112,34 @@ func validateBetaSkillVersionCreate(suite string, version *anthropic.BetaSkillVe
 	return nil
 }
 
-func validateBetaSkillVersionGet(suite string, version *anthropic.BetaSkillVersionGetResponse, wantSkillID, wantVersion string) error {
+func validateBetaSkillVersionGet(suite string, version *anthropic.BetaSkillVersion, wantSkillID, wantID string) error {
 	if version == nil {
 		return fail(suite, "get version response is nil")
 	}
-	if err := validateBetaSkillVersionEnvelope(suite, version.ID, version.Type, version.SkillID, version.Version); err != nil {
+	if err := validateBetaSkillVersionEnvelope(suite, version.ID, string(version.Type), version.SkillID); err != nil {
 		return err
 	}
 	if version.SkillID != wantSkillID {
 		return fail(suite, fmt.Sprintf("get skill_id is %q, want %q", version.SkillID, wantSkillID))
 	}
-	if version.Version != wantVersion {
-		return fail(suite, fmt.Sprintf("get version is %q, want %q", version.Version, wantVersion))
+	if version.ID != wantID {
+		return fail(suite, fmt.Sprintf("get version id is %q, want %q", version.ID, wantID))
 	}
 	return nil
 }
 
-func validateBetaSkillVersionListItem(suite string, version *anthropic.BetaSkillVersionListResponse, wantSkillID, wantVersion string) error {
+func validateBetaSkillVersionListItem(suite string, version *anthropic.BetaSkillVersion, wantSkillID, wantID string) error {
 	if version == nil {
 		return fail(suite, "list version item is nil")
 	}
-	if err := validateBetaSkillVersionEnvelope(suite, version.ID, version.Type, version.SkillID, version.Version); err != nil {
+	if err := validateBetaSkillVersionEnvelope(suite, version.ID, string(version.Type), version.SkillID); err != nil {
 		return err
 	}
 	if version.SkillID != wantSkillID {
 		return fail(suite, fmt.Sprintf("list skill_id is %q, want %q", version.SkillID, wantSkillID))
 	}
-	if version.Version != wantVersion {
-		return fail(suite, fmt.Sprintf("list version is %q, want %q", version.Version, wantVersion))
+	if version.ID != wantID {
+		return fail(suite, fmt.Sprintf("list version id is %q, want %q", version.ID, wantID))
 	}
 	return nil
 }

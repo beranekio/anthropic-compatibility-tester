@@ -154,27 +154,27 @@ func mockFileMetadata(id, filename string, size int64) map[string]any {
 	}
 }
 
-func mockSkillPayload(id string) map[string]any {
+func mockSkillPayload(id, latestVersionID string) map[string]any {
+	now := time.Now().UTC().Format(time.RFC3339)
 	return map[string]any{
-		"id":             id,
-		"type":           "skill",
-		"created_at":     time.Now().UTC().Format(time.RFC3339),
-		"display_title":  "Compatibility Test Skill",
-		"latest_version": "1759178010641129",
-		"source":         "custom",
+		"id":                id,
+		"type":              "skill",
+		"created_at":        now,
+		"updated_at":        now,
+		"display_name":      "Compatibility Test Skill",
+		"latest_version_id": latestVersionID,
+		"source":            map[string]any{"type": "custom"},
 	}
 }
 
-func mockSkillVersionPayload(skillID, version string) map[string]any {
+func mockSkillVersionPayload(skillID, versionID string) map[string]any {
 	return map[string]any{
-		"id":          "skver_mock_" + version,
+		"id":          versionID,
 		"type":        "skill_version",
-		"version":     version,
 		"skill_id":    skillID,
 		"created_at":  time.Now().UTC().Format(time.RFC3339),
 		"name":        "compatibility-test-skill",
 		"description": "compatibility test skill",
-		"directory":   "compatibility-test-skill",
 	}
 }
 

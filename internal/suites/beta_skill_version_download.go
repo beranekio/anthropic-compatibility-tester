@@ -30,8 +30,8 @@ func (BetaSkillVersionDownload) Run(ctx context.Context, client anthropic.Client
 	}()
 
 	created, err := client.Beta.Skills.New(ctx, anthropic.BetaSkillNewParams{
-		DisplayTitle: anthropic.String(uniqueSkillDisplayTitle()),
-		Files:        []io.Reader{testutil.SmallSkillFileReader()},
+		DisplayName: anthropic.String(uniqueSkillDisplayName()),
+		Files:       []io.Reader{testutil.SmallSkillFileReader()},
 	})
 	if err != nil {
 		return fmt.Errorf("beta skill create failed: %w", err)
@@ -51,7 +51,7 @@ func (BetaSkillVersionDownload) Run(ctx context.Context, client anthropic.Client
 		return err
 	}
 
-	resp, err := client.Beta.Skills.Versions.Download(ctx, version.Version, anthropic.BetaSkillVersionDownloadParams{
+	resp, err := client.Beta.Skills.Versions.Download(ctx, version.ID, anthropic.BetaSkillVersionDownloadParams{
 		SkillID: skillID,
 	})
 	if err != nil {

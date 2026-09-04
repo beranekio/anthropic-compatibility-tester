@@ -31,8 +31,8 @@ func (BetaSkills) Run(ctx context.Context, client anthropic.Client, _ *config.Co
 	}()
 
 	created, err := client.Beta.Skills.New(ctx, anthropic.BetaSkillNewParams{
-		DisplayTitle: anthropic.String(uniqueSkillDisplayTitle()),
-		Files:        []io.Reader{testutil.SmallSkillFileReader()},
+		DisplayName: anthropic.String(uniqueSkillDisplayName()),
+		Files:       []io.Reader{testutil.SmallSkillFileReader()},
 	})
 	if err != nil {
 		return fmt.Errorf("beta skill create failed: %w", err)
@@ -90,7 +90,7 @@ func (BetaSkills) Run(ctx context.Context, client anthropic.Client, _ *config.Co
 	return nil
 }
 
-func uniqueSkillDisplayTitle() string {
+func uniqueSkillDisplayName() string {
 	return fmt.Sprintf("Compatibility Test Skill %d", time.Now().UnixNano())
 }
 
@@ -99,9 +99,9 @@ func uniqueSkillDisplayTitle() string {
 func deleteBetaSkillVersions(ctx context.Context, client anthropic.Client, suite, skillID string) error {
 	pager := client.Beta.Skills.Versions.ListAutoPaging(ctx, skillID, anthropic.BetaSkillVersionListParams{})
 	for pager.Next() {
-		version := pager.Current().Version
+		version := pager.Current().ID
 		if version == "" {
-			return fail(suite, "skill version list item missing version")
+			return fail(suite, "skill version list item missing id")
 		}
 		if _, err := client.Beta.Skills.Versions.Delete(ctx, version, anthropic.BetaSkillVersionDeleteParams{
 			SkillID: skillID,
@@ -124,7 +124,7 @@ func cleanupBetaSkill(ctx context.Context, client anthropic.Client, skillID stri
 	_, _ = client.Beta.Skills.Delete(ctx, skillID, anthropic.BetaSkillDeleteParams{})
 }
 
-func validateBetaSkillDeleteResponse(suite string, deleted *anthropic.BetaSkillDeleteResponse, wantID string) error {
+func validateBetaSkillDeleteResponse(suite string, deleted *anthropic.BetaDeletedSkill, wantID string) error {
 	if deleted == nil {
 		return fail(suite, "delete response is nil")
 	}
@@ -140,17 +140,20 @@ func validateBetaSkillDeleteResponse(suite string, deleted *anthropic.BetaSkillD
 	return nil
 }
 
-func validateBetaSkillResponse(suite string, skill *anthropic.BetaSkillNewResponse) error {
+func validateBetaSkillResponse(suite string, skill *anthropic.BetaSkill) error {
 	if skill == nil {
 		return fail(suite, "skill response is nil")
 	}
 	if skill.ID == "" {
 		return fail(suite, "skill missing id")
 	}
-	if skill.LatestVersion == "" {
-		return fail(suite, "skill missing latest_version")
+	if skill.DisplayName == "" {
+		return fail(suite, "skill missing display_name")
 	}
-	if skill.Source == "" {
+	if skill.LatestVersionID == "" {
+		return fail(suite, "skill missing latest_version_id")
+	}
+	if skill.Source.Type == "" {
 		return fail(suite, "skill missing source")
 	}
 	if skill.Type != "skill" {
@@ -159,15 +162,15 @@ func validateBetaSkillResponse(suite string, skill *anthropic.BetaSkillNewRespon
 	return nil
 }
 
-func validateBetaSkillGetResponse(suite string, skill *anthropic.BetaSkillGetResponse) error {
+func validateBetaSkillGetResponse(suite string, skill *anthropic.BetaSkill) error {
 	if skill == nil {
 		return fail(suite, "skill response is nil")
 	}
 	if skill.ID == "" {
 		return fail(suite, "skill missing id")
 	}
-	if skill.LatestVersion == "" {
-		return fail(suite, "skill missing latest_version")
+	if skill.LatestVersionID == "" {
+		return fail(suite, "skill missing latest_version_id")
 	}
 	if skill.Type != "skill" {
 		return fail(suite, fmt.Sprintf("skill type is %q, want skill", skill.Type))

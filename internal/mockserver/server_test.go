@@ -81,6 +81,63 @@ func TestHandlerRejectsInvalidJSONCompletions(t *testing.T) {
 	}
 }
 
+func TestHandlerSkillCreateReturnsGAShape(t *testing.T) {
+	ts := httptest.NewServer(Handler())
+	t.Cleanup(ts.Close)
+
+	var body bytes.Buffer
+	w := multipart.NewWriter(&body)
+	part, err := w.CreateFormFile("files", "compatibility-test-skill/SKILL.md")
+	if err != nil {
+		t.Fatalf("CreateFormFile() error = %v", err)
+	}
+	if _, err := io.WriteString(part, "---\nname: test\ndescription: test\n---\n"); err != nil {
+		t.Fatalf("WriteString() error = %v", err)
+	}
+	if err := w.Close(); err != nil {
+		t.Fatalf("multipart Close() error = %v", err)
+	}
+
+	resp, err := http.Post(ts.URL+"/v1/skills", w.FormDataContentType(), &body)
+	if err != nil {
+		t.Fatalf("http.Post() error = %v", err)
+	}
+	payload, err := io.ReadAll(resp.Body)
+	_ = resp.Body.Close()
+	if err != nil {
+		t.Fatalf("read body error = %v", err)
+	}
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("status code = %d, want 200, body = %s", resp.StatusCode, payload)
+	}
+
+	var created struct {
+		ID              string `json:"id"`
+		Type            string `json:"type"`
+		DisplayName     string `json:"display_name"`
+		LatestVersionID string `json:"latest_version_id"`
+		UpdatedAt       string `json:"updated_at"`
+		Source          struct {
+			Type string `json:"type"`
+		} `json:"source"`
+	}
+	if err := json.Unmarshal(payload, &created); err != nil {
+		t.Fatalf("unmarshal skill create: %v, body = %s", err, payload)
+	}
+	if created.ID == "" || created.Type != "skill" || created.DisplayName == "" || created.LatestVersionID == "" {
+		t.Fatalf("skill create missing GA fields: %+v, body = %s", created, payload)
+	}
+	if created.UpdatedAt == "" {
+		t.Fatalf("skill create missing updated_at: %s", payload)
+	}
+	if created.Source.Type != "custom" {
+		t.Fatalf("skill source.type = %q, want custom, body = %s", created.Source.Type, payload)
+	}
+	if strings.Contains(string(payload), `"display_title"`) {
+		t.Fatalf("skill create still uses display_title: %s", payload)
+	}
+}
+
 func TestHandlerRejectsSkillCreateWithoutFiles(t *testing.T) {
 	ts := httptest.NewServer(Handler())
 	t.Cleanup(ts.Close)

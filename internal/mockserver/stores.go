@@ -159,11 +159,12 @@ func (s *skillStore) create() map[string]any {
 	defer s.mu.Unlock()
 	s.next++
 	id := "skill_mock_" + strconv.Itoa(s.next)
-	meta := mockSkillPayload(id)
-	version := mockSkillVersionPayload(id, "1759178010641129")
+	versionID := "skver_mock_1759178010641129"
+	version := mockSkillVersionPayload(id, versionID)
+	meta := mockSkillPayload(id, versionID)
 	s.skills[id] = skillEntry{
 		metadata: meta,
-		versions: map[string]map[string]any{version["version"].(string): version},
+		versions: map[string]map[string]any{versionID: version},
 	}
 	return cloneMap(meta)
 }
@@ -195,8 +196,10 @@ func (s *skillStore) addVersion(skillID string) (map[string]any, bool) {
 	if !ok {
 		return nil, false
 	}
-	version := mockSkillVersionPayload(skillID, "1759178010641130")
-	entry.versions[version["version"].(string)] = version
+	versionID := "skver_mock_1759178010641130"
+	version := mockSkillVersionPayload(skillID, versionID)
+	entry.versions[versionID] = version
+	entry.metadata["latest_version_id"] = versionID
 	s.skills[skillID] = entry
 	return cloneMap(version), true
 }
@@ -250,11 +253,11 @@ func (s *skillStore) deleteVersion(skillID, version string) bool {
 		return false
 	}
 	delete(entry.versions, version)
-	// Keep latest_version coherent after deletes.
-	if latest, _ := entry.metadata["latest_version"].(string); latest == version {
-		entry.metadata["latest_version"] = ""
+	// Keep latest_version_id coherent after deletes.
+	if latest, _ := entry.metadata["latest_version_id"].(string); latest == version {
+		entry.metadata["latest_version_id"] = ""
 		for v := range entry.versions {
-			entry.metadata["latest_version"] = v
+			entry.metadata["latest_version_id"] = v
 			break
 		}
 	}

@@ -33,7 +33,7 @@ func waitForMessageBatchStatus(ctx context.Context, client anthropic.Client, sui
 	ticker := time.NewTicker(messageBatchPollInterval)
 	defer ticker.Stop()
 	for {
-		got, err := client.Messages.Batches.Get(ctx, batchID)
+		got, err := client.Messages.Batches.Get(ctx, batchID, anthropic.MessageBatchGetParams{})
 		if err != nil {
 			return nil, fmt.Errorf("message batch get failed: %w", err)
 		}
@@ -60,7 +60,7 @@ func waitForMessageBatchCancelable(ctx context.Context, client anthropic.Client,
 	ticker := time.NewTicker(messageBatchPollInterval)
 	defer ticker.Stop()
 	for {
-		got, err := client.Messages.Batches.Get(ctx, batchID)
+		got, err := client.Messages.Batches.Get(ctx, batchID, anthropic.MessageBatchGetParams{})
 		if err != nil {
 			return false, fmt.Errorf("message batch get failed: %w", err)
 		}
@@ -95,7 +95,7 @@ func cleanupMessageBatch(client anthropic.Client, batchID string) {
 	cancelableCancel()
 	if err == nil && !skipCancel {
 		cancelCtx, cancelCancel := context.WithTimeout(context.Background(), 10*time.Second)
-		_, _ = client.Messages.Batches.Cancel(cancelCtx, batchID)
+		_, _ = client.Messages.Batches.Cancel(cancelCtx, batchID, anthropic.MessageBatchCancelParams{})
 		cancelCancel()
 	}
 
@@ -106,7 +106,7 @@ func cleanupMessageBatch(client anthropic.Client, batchID string) {
 	endedCancel()
 
 	deleteCtx, deleteCancel := context.WithTimeout(context.Background(), 10*time.Second)
-	_, _ = client.Messages.Batches.Delete(deleteCtx, batchID)
+	_, _ = client.Messages.Batches.Delete(deleteCtx, batchID, anthropic.MessageBatchDeleteParams{})
 	deleteCancel()
 }
 
@@ -125,7 +125,7 @@ func isMessageBatchCancelTerminalStatus(status anthropic.MessageBatchProcessingS
 }
 
 func confirmMessageBatchCancelTerminalState(ctx context.Context, client anthropic.Client, suite, batchID string) error {
-	got, err := client.Messages.Batches.Get(ctx, batchID)
+	got, err := client.Messages.Batches.Get(ctx, batchID, anthropic.MessageBatchGetParams{})
 	if err != nil {
 		return fmt.Errorf("message batch get failed: %w", err)
 	}
@@ -144,7 +144,7 @@ func confirmMessageBatchCancelTerminalState(ctx context.Context, client anthropi
 // exerciseMessageBatchCancelEndpoint calls Cancel when the batch already ended before
 // becoming cancelable. Terminal-state errors only pass after GET confirms canceling/ended.
 func exerciseMessageBatchCancelEndpoint(ctx context.Context, client anthropic.Client, suite, batchID string) error {
-	canceled, err := client.Messages.Batches.Cancel(ctx, batchID)
+	canceled, err := client.Messages.Batches.Cancel(ctx, batchID, anthropic.MessageBatchCancelParams{})
 	if err != nil {
 		var apiErr *anthropic.Error
 		if errors.As(err, &apiErr) && isMessageBatchCancelAlreadyTerminalError(apiErr) {
@@ -234,7 +234,7 @@ func (MessageBatchesGet) Run(ctx context.Context, client anthropic.Client, cfg *
 	}
 	batchID = created.ID
 
-	got, err := client.Messages.Batches.Get(ctx, batchID)
+	got, err := client.Messages.Batches.Get(ctx, batchID, anthropic.MessageBatchGetParams{})
 	if err != nil {
 		return fmt.Errorf("message batch get failed: %w", err)
 	}
@@ -287,7 +287,7 @@ func (MessageBatchesCancel) Run(ctx context.Context, client anthropic.Client, cf
 		return exerciseMessageBatchCancelEndpoint(ctx, client, "message_batches_cancel", batchID)
 	}
 
-	canceled, err := client.Messages.Batches.Cancel(ctx, batchID)
+	canceled, err := client.Messages.Batches.Cancel(ctx, batchID, anthropic.MessageBatchCancelParams{})
 	if err != nil {
 		var apiErr *anthropic.Error
 		if errors.As(err, &apiErr) && isMessageBatchCancelAlreadyTerminalError(apiErr) {
@@ -404,7 +404,7 @@ func (MessageBatchesResults) Run(ctx context.Context, client anthropic.Client, c
 			return err
 		}
 		if !skipCancel {
-			if _, err := client.Messages.Batches.Cancel(ctx, batchID); err != nil {
+			if _, err := client.Messages.Batches.Cancel(ctx, batchID, anthropic.MessageBatchCancelParams{}); err != nil {
 				var apiErr *anthropic.Error
 				if !errors.As(err, &apiErr) || !isMessageBatchCancelAlreadyTerminalError(apiErr) {
 					return fmt.Errorf("message batch cancel failed: %w", err)
@@ -418,7 +418,7 @@ func (MessageBatchesResults) Run(ctx context.Context, client anthropic.Client, c
 		}
 	}
 
-	stream := client.Messages.Batches.ResultsStreaming(ctx, batchID)
+	stream := client.Messages.Batches.ResultsStreaming(ctx, batchID, anthropic.MessageBatchResultsParams{})
 	defer stream.Close()
 
 	count := 0
@@ -491,7 +491,7 @@ func (MessageBatchesDelete) Run(ctx context.Context, client anthropic.Client, cf
 			return err
 		}
 		if !skipCancel {
-			if _, err := client.Messages.Batches.Cancel(ctx, batchID); err != nil {
+			if _, err := client.Messages.Batches.Cancel(ctx, batchID, anthropic.MessageBatchCancelParams{}); err != nil {
 				var apiErr *anthropic.Error
 				if !errors.As(err, &apiErr) || !isMessageBatchCancelAlreadyTerminalError(apiErr) {
 					return fmt.Errorf("message batch cancel failed: %w", err)
@@ -505,7 +505,7 @@ func (MessageBatchesDelete) Run(ctx context.Context, client anthropic.Client, cf
 		}
 	}
 
-	deleted, err := client.Messages.Batches.Delete(ctx, batchID)
+	deleted, err := client.Messages.Batches.Delete(ctx, batchID, anthropic.MessageBatchDeleteParams{})
 	if err != nil {
 		return fmt.Errorf("message batch delete failed: %w", err)
 	}
